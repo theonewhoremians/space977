@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="320" viewBox="0 0 1024 320">
+  <g transform="translate(10,44)">
+    <rect x="0" y="20" width="230" height="150" rx="34" fill="#ff0033"/>
+    <path d="M91 58 L91 132 L154 95 Z" fill="#ffffff"/>
+    <text x="255" y="157" fill="#ffffff" font-family="DejaVu Sans Condensed, Arial Narrow, sans-serif" font-size="154" font-weight="700" letter-spacing="-8">Studio</text>
+  </g>
+</svg>

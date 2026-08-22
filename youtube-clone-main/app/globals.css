@@ -1,0 +1,96 @@
+@import "tailwindcss";
+
+@theme {
+  --color-yt-bg: #0f0f0f;
+  --color-yt-surface: #181818;
+  --color-yt-elevated: #212121;
+  --color-yt-hover: #272727;
+  --color-yt-active: #3d3d3d;
+  --color-yt-border: #303030;
+  --color-yt-text: #f1f1f1;
+  --color-yt-muted: #aaaaaa;
+  --color-yt-red: #ff0033;
+  --color-yt-blue: #3ea6ff;
+
+  --font-sans: var(--font-roboto), ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", Arial, sans-serif;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  background-color: var(--color-yt-bg);
+  color: var(--color-yt-text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  border-color: var(--color-yt-border);
+}
+
+/* Thin custom scrollbars */
+.yt-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #606060 transparent;
+}
+.yt-scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.yt-scroll::-webkit-scrollbar-thumb {
+  background-color: #606060;
+  border-radius: 999px;
+}
+.yt-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Hide scrollbar (used for chip bars) */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+@keyframes yt-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-fade-in {
+  animation: yt-fade-in 0.28s ease-out both;
+}
+
+@keyframes yt-shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.line-clamp-1,
+.line-clamp-2,
+.line-clamp-3 {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.line-clamp-1 {
+  -webkit-line-clamp: 1;
+}
+.line-clamp-2 {
+  -webkit-line-clamp: 2;
+}
+.line-clamp-3 {
+  -webkit-line-clamp: 3;
+}

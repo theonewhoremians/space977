@@ -1,151 +1,897 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { ChangeEvent, FormEvent } from "react";
+import { ChevronRight, ChevronUp } from "lucide-react";
+import { activateLicense, clearLicenseSession, getLicenseStatus, loadLicenseSession, refreshLicense } from "../lib/license";
 
-type Screen = "dashboard" | "content" | "analytics" | "community" | "earn" | "video" | "geography";
-type AnalyticsTab = "Overview" | "Content" | "Audience" | "Trends";
-type VideoTab = "Overview" | "Reach" | "Engagement" | "Audience";
+const iconPath = (name: string) => `/ui-icons/${name}.svg`;
+const textStorageKey = "creator-studio-saved-text-v3";
 
-const videos = [
-  { title: "Going to red sun emoji reaction in Minecraft", views: "2.0K", color: "#34396f", date: "Aug 19, 2026" },
-  { title: "The Ultimate Minecraft Glitch! Heavy Core", views: "72", color: "#735768", date: "Aug 17, 2026" },
-  { title: "Going to lunar moon in Minecraft", views: "57", color: "#36537b", date: "Aug 15, 2026" },
-  { title: "Poi poi poi Minecraft song", views: "51", color: "#657338", date: "Aug 12, 2026" },
-  { title: "Enchanted table hack that you don’t know", views: "45", color: "#3f665a", date: "Aug 10, 2026" },
-  { title: "Can we Hit EnderMan with a arrow?", views: "11", color: "#674448", date: "Aug 20, 2026" },
-];
+function percentageValue(text: string | null | undefined) {
+  const value = Number.parseFloat((text || "").replace(/[^0-9.-]/g, ""));
+  return Number.isFinite(value) ? Math.max(0, Math.min(100, value)) : 0;
+}
 
-const navItems: { icon: string; label: string; screen: Screen }[] = [
-  { icon:"⌂", label:"Dashboard", screen:"dashboard" },
-  { icon:"▶", label:"Content", screen:"content" },
-  { icon:"▥", label:"Analytics", screen:"analytics" },
-  { icon:"♧", label:"Community", screen:"community" },
-  { icon:"$", label:"Earn", screen:"earn" },
-];
+function syncReachPercentageBars(root: ParentNode) {
+  root.querySelectorAll<HTMLElement>(".source-card, .term-row").forEach((container) => {
+    const percentage = percentageValue(container.querySelector("strong")?.textContent);
+    const bar = container.querySelector<HTMLElement>(".source-progress i");
+    if (bar) bar.style.width = `${percentage}%`;
+  });
 
-function Logo() { return <span className="logo"><i /> <b>Studio</b></span>; }
+  const trafficSegments = root.querySelectorAll<HTMLElement>(".traffic-bar i");
+  root.querySelectorAll<HTMLElement>(".traffic-list > div").forEach((row, index) => {
+    const percentage = percentageValue(row.querySelector("strong")?.textContent);
+    const segment = trafficSegments[index];
+    if (segment) {
+      segment.style.width = `${percentage}%`;
+      segment.style.flex = "0 0 auto";
+    }
+  });
 
-function Thumb({ color, tall = false }: { color: string; tall?: boolean }) {
+  const engagedSegments = root.querySelectorAll<HTMLElement>(".engaged-bar i");
+  root.querySelectorAll<HTMLElement>(".engaged-values strong").forEach((value, index) => {
+    const segment = engagedSegments[index];
+    if (segment) {
+      segment.style.width = `${percentageValue(value.textContent)}%`;
+      segment.style.flex = "0 0 auto";
+    }
+  });
+
+  root.querySelectorAll<HTMLElement>(".audience-row").forEach((row) => {
+    const percentage = percentageValue(row.querySelector("strong")?.textContent);
+    const bar = row.querySelector<HTMLElement>(".audience-progress i");
+    if (bar) bar.style.width = `${percentage}%`;
+  });
+
+  const deviceSegments = root.querySelectorAll<HTMLElement>(".device-bar i");
+  root.querySelectorAll<HTMLElement>(".device-list > div").forEach((row, index) => {
+    const segment = deviceSegments[index];
+    if (segment) {
+      segment.style.width = `${percentageValue(row.querySelector("strong")?.textContent)}%`;
+      segment.style.flex = "0 0 auto";
+    }
+  });
+}
+
+function SvgIcon({ name, size, className = "" }: { name: string; size: number; className?: string }) {
+  return <img className={`svg-icon ${className}`} src={iconPath(name)} width={size} height={size} alt="" aria-hidden="true" />;
+}
+
+function TopHeader({ editMode, onToggleEdit }: { editMode: boolean; onToggleEdit: () => void }) {
+  const logoTapCountRef = useRef(0);
+  const logoTapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function handleLogoTap() {
+    logoTapCountRef.current += 1;
+    if (logoTapCountRef.current >= 2) {
+      if (logoTapTimerRef.current) clearTimeout(logoTapTimerRef.current);
+      logoTapCountRef.current = 0;
+      logoTapTimerRef.current = null;
+      onToggleEdit();
+      return;
+    }
+
+    if (logoTapTimerRef.current) clearTimeout(logoTapTimerRef.current);
+    logoTapTimerRef.current = setTimeout(() => {
+      logoTapCountRef.current = 0;
+      logoTapTimerRef.current = null;
+    }, 700);
+  }
+
   return (
-    <span className={`thumb ${tall ? "tall" : ""}`} style={{ background: `linear-gradient(145deg, ${color}, #151515)` }}>
-      <i>▶</i><em>▦</em>
-    </span>
+    <header className="studio-header">
+      <button className={`studio-brand${editMode ? " editing" : ""}`} type="button" onClick={handleLogoTap} aria-pressed={editMode} aria-label={editMode ? "Double tap to save text changes" : "Double tap to edit page text"} title={editMode ? "Double tap to save" : "Double tap to edit"}>
+        <img src="/youtube-studio-logo-white.svg" alt="Studio" />
+      </button>
+      <div className="header-actions">
+        <button aria-label="Create"><SvgIcon name="add-circle" size={25} /></button>
+        <button aria-label="Notifications"><SvgIcon name="notification-bell" size={25} /></button>
+        <button className="header-avatar" aria-label="Account"><img src="/top-icons/profile-emoji.svg" alt="" /></button>
+      </div>
+    </header>
   );
 }
 
-function Bars({ purple = false }: { purple?: boolean }) {
-  return <div className={`bars ${purple ? "purple" : ""}`}>{[8,14,6,20,11,24,9,18,13,22,7,16,25,10,18,12,23,8,19,14,21,11,24,18].map((h,i)=><i style={{height:`${h}px`}} key={i}/>)}</div>;
+function ChannelProfile({ avatarSrc, onAvatarChange }: { avatarSrc: string; onAvatarChange: (file: File, preview: string) => void }) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  function handleAvatarUpload(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file || !["image/png", "image/jpeg", "image/webp"].includes(file.type)) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") onAvatarChange(file, reader.result);
+    };
+    reader.readAsDataURL(file);
+    event.target.value = "";
+  }
+
+  return (
+    <section className="channel-profile-accurate">
+      <div className="avatar-uploader">
+        <button className="large-avatar" type="button" aria-label="Change channel profile picture" onClick={() => fileInputRef.current?.click()}>
+          <img src={avatarSrc} alt="Channel profile" />
+        </button>
+        <input ref={fileInputRef} type="file" accept="image/png,image/jpeg,image/webp" onChange={handleAvatarUpload} hidden />
+      </div>
+      <div className="channel-copy"><h1>Smili Gamer</h1><strong>2,328</strong><p>Total subscribers</p></div>
+    </section>
+  );
 }
 
-function TrendChart({ magenta = false }: { magenta?: boolean }) {
+function AnalyticsHeader() {
+  return <div className="analytics-heading"><h2>Channel analytics</h2><span>Last 28 days</span></div>;
+}
+
+function MetricCard({ label, value, status = "success" }: { label: string; value: string; status?: "success" | "down" }) {
+  return <article className="metric-card-accurate"><span>{label}</span><strong>{value}<SvgIcon name={status === "down" ? "down-circle" : "check-circle-green"} size={18} /></strong></article>;
+}
+
+function EngagementStats({ views, likes, comments, expanded, onToggle }: { views: string; likes: string; comments: string; expanded: boolean; onToggle: () => void }) {
   return (
-    <div className={`trend-chart ${magenta ? "magenta" : ""}`}>
-      <span>1.5K</span><span>1.0K</span><span>500</span>
-      <div className="trend-fill" />
-      <div className="trend-line"><i/><i/><i/><i/><i/><i/><i/></div>
-      <small>Jul 23</small><small>Aug 19</small>
+    <div className="engagement-stats">
+      <span><SvgIcon name="views-studio" size={22} />{views}</span>
+      <span><SvgIcon name="likes-studio" size={22} />{likes}</span>
+      <span><SvgIcon name="comments-studio" size={22} />{comments}</span>
+      <button className="content-toggle" type="button" aria-label={expanded ? "Collapse content details" : "Expand content details"} aria-expanded={expanded} onClick={(event) => { event.stopPropagation(); onToggle(); }}>
+        <ChevronUp className={expanded ? "" : "collapsed-chevron"} size={22} strokeWidth={2.2} />
+      </button>
     </div>
   );
 }
 
-function ProgressRow({ label, value, width = 50 }: { label: string; value: string; width?: number }) {
-  return <div className="progress-row"><div><span>{label}</span><b>{value}</b></div><i><em style={{width:`${width}%`}} /></i></div>;
+type StatusIcon = "right" | "down" | "success";
+
+function StatusIcon({ type }: { type: StatusIcon }) {
+  if (type === "right") return <ChevronRight size={21} strokeWidth={2} />;
+  return <SvgIcon name={type === "down" ? "down-circle" : "check-circle-green"} size={20} />;
 }
 
-function TabBar<T extends string>({ items, active, onChange }: { items: readonly T[]; active: T; onChange: (tab:T)=>void }) {
-  return <div className="tabs" role="tablist">{items.map(tab=><button role="tab" aria-selected={active===tab} className={active===tab?"active":""} onClick={()=>onChange(tab)} key={tab}>{tab}</button>)}</div>;
+function PerformanceRow({ label, value, status }: { label: string; value: string; status: StatusIcon }) {
+  return <div className="performance-row"><span>{label}</span><div><b>{value}</b><StatusIcon type={status} /></div></div>;
 }
 
-function Card({ children, className="" }: { children: React.ReactNode; className?: string }) {
-  return <article className={`panel ${className}`}>{children}</article>;
+function CommentsSection() {
+  return <section className="comments-section"><div><span>Comments</span><b>1</b></div><p>No unresponded comments</p></section>;
 }
 
-function Dashboard({ openAnalytics, openVideo, openContent }: { openAnalytics:()=>void; openVideo:()=>void; openContent:()=>void }) {
+type PublishedVideo = {
+  title: string;
+  metadata: string;
+  views: string;
+  likes: string;
+  comments: string;
+  ranking: string;
+  average: string;
+  thumb: number;
+};
+
+type VideoGraphData = {
+  views: number[];
+  subscribers: number[];
+  retention: number[];
+  reachViews: number[];
+  engagedViews: number[];
+  uniqueViewers: number[];
+  watchTime: number[];
+  averageDuration: number[];
+  engagementRetention: number[];
+};
+
+const defaultVideoGraphs: VideoGraphData = {
+  views: [0, 2, 2, 5, 5, 7, 7, 8, 8, 11, 11, 13, 14, 15, 15, 18, 18],
+  subscribers: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  retention: [138, 112, 106, 106, 106, 88, 81, 72, 72, 60, 53, 53, 44, 44, 44, 36, 36],
+  reachViews: [0, 1, 1, 2, 2, 3, 4, 5, 6, 7, 9, 13, 22, 38, 61, 82],
+  engagedViews: [0, 330, 332, 332, 332, 332, 332, 332, 332, 332, 332, 332],
+  uniqueViewers: [0, 300, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  watchTime: [0, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3],
+  averageDuration: [0, 16, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  engagementRetention: [112, 108, 106, 104, 84, 74, 64, 57, 43, 32, 28, 26, 23, 21, 18, 16, 14, 13, 12, 10, 8, 8],
+};
+
+function PublishedContentCard({ video, initiallyExpanded = false, imageSrc, onImageChange, onOpen }: { video: PublishedVideo; initiallyExpanded?: boolean; imageSrc?: string; onImageChange: (file: File, preview: string) => void; onOpen: () => void }) {
+  const [expanded, setExpanded] = useState(initiallyExpanded);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+
+  function handleThumbnailUpload(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file || !["image/png", "image/jpeg", "image/webp"].includes(file.type)) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") onImageChange(file, reader.result);
+    };
+    reader.readAsDataURL(file);
+    event.target.value = "";
+  }
+
   return (
-    <section className="page dashboard">
-      <div className="welcome"><div><p>Welcome back,</p><h1>Mythpat Minecraft</h1></div><span className="channel-avatar">M</span></div>
-      <div className="summary-grid">
-        <Card className="metric-card">
-          <div className="metric-head"><h2>Channel analytics</h2><span>Last 28 days</span></div>
-          <strong>1,286</strong><p>Views</p><TrendChart />
-          <div className="mini-stats"><span><b>4.2</b>Watch time (hours)</span><span><b className="green">+3</b>Subscribers</span></div>
-          <button className="link-button" onClick={openAnalytics}>GO TO CHANNEL ANALYTICS</button>
-        </Card>
-        <Card className="metric-card latest">
-          <div className="metric-head"><h2>Latest published content</h2><span>First 6 hours 14 minutes</span></div>
-          <button className="latest-video" onClick={openVideo}><Thumb color="#674448" /><div><b>Can we Hit EnderMan with a arrow?</b><small>Short</small></div></button>
-          <div className="row-stat"><span>Views</span><b>11</b></div><div className="row-stat"><span>Average percentage viewed</span><b>19.8%</b></div><div className="row-stat"><span>Likes</span><b>1</b></div>
-          <button className="link-button" onClick={openVideo}>GO TO VIDEO ANALYTICS</button>
-        </Card>
+    <article className={`latest-card-accurate ${expanded ? "expanded" : "collapsed"}`} role="button" tabIndex={0} aria-label={`Open details for ${video.title}`} onClick={onOpen} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") onOpen(); }}>
+      <div className="latest-video-row">
+        <div className="thumbnail-uploader">
+          <button className={`reference-thumb thumb-${video.thumb}${imageSrc ? " has-upload" : " has-reference"}`} type="button" aria-label={`Change thumbnail for ${video.title}`} onClick={(event) => { event.stopPropagation(); imageInputRef.current?.click(); }}>
+            {imageSrc ? <img className="uploaded-thumbnail" src={imageSrc} alt="Video thumbnail" /> : <img className={`reference-sheet reference-sheet-${video.thumb}`} src="/pixel-reference.jpeg" alt="Video thumbnail" />}
+          </button>
+          <input ref={imageInputRef} type="file" accept="image/png,image/jpeg,image/webp" onChange={handleThumbnailUpload} hidden />
+        </div>
+        <div><h3>{video.title}</h3><p>{video.metadata}</p></div>
       </div>
-      <Card className="content-panel"><div className="metric-head"><h2>Your top content</h2><span>Last 28 days</span></div>{videos.slice(0,5).map(video=><div className="video-row" key={video.title}><Thumb color={video.color}/><p>{video.title}</p><b>{video.views}</b></div>)}<button className="link-button" onClick={openContent}>GO TO CONTENT</button></Card>
-      <Card className="realtime"><h2>Realtime</h2><strong>161</strong><span>Views · 48 hours</span><Bars />{videos.slice(0,3).map(video=><div className="video-row compact" key={video.title}><Thumb color={video.color}/><p>{video.title}</p><b>{video.views}</b></div>)}</Card>
-      <Card className="news"><div className="roundup">Creator<br/><b>RoundUp</b></div><h2>Monthly Creator Roundup</h2><p>Catch up on the latest news, features, and trending updates from YouTube Creators to help your channel grow.</p><small>9 days ago</small></Card>
-    </section>
+      <EngagementStats views={video.views} likes={video.likes} comments={video.comments} expanded={expanded} onToggle={() => setExpanded((value) => !value)} />
+      <div className="performance-list">
+        <PerformanceRow label="Ranking by views" value={video.ranking} status="right" />
+        <PerformanceRow label="Views" value={video.views} status="down" />
+        <PerformanceRow label="Average percentage viewed" value={video.average} status="down" />
+        <PerformanceRow label="Likes" value={video.likes} status="success" />
+      </div>
+      <section className="comments-section"><div><span>Comments</span><b>{video.comments}</b></div><p>No unresponded comments</p></section>
+    </article>
   );
 }
 
-function Content({ openVideo }: { openVideo:()=>void }) {
+const publishedVideos: PublishedVideo[] = [
+  { title: "Earn Dollars through Whop 🤑🤑 (ver...", metadata: "First 21 days 23 hours", views: "11", likes: "1", comments: "1", ranking: "8 of 10", average: "19.8%", thumb: 1 },
+  { title: "Funding Pips @fundingpipscom #sh...", metadata: "First 70 days 18 hours", views: "53", likes: "1", comments: "0", ranking: "6 of 10", average: "31.2%", thumb: 2 },
+  { title: "One injury changed everything #shor...", metadata: "First 71 days 4 hours", views: "6", likes: "0", comments: "0", ranking: "9 of 10", average: "14.6%", thumb: 3 },
+];
+
+const navItems = [
+  ["dashboard", "Dashboard"],
+  ["content", "Content"],
+  ["analytics", "Analytics"],
+  ["community", "Community"],
+  ["earn", "Earn"],
+] as const;
+
+type PageName = (typeof navItems)[number][1];
+
+function BottomNavItem({ icon, label, active, onSelect }: { icon: string; label: PageName; active: boolean; onSelect: () => void }) {
+  const iconSrc = active
+    ? `/nav-icons/${icon}-active.svg`
+    : icon === "analytics"
+      ? "/nav-icons/analytics-inactive.svg"
+      : `/nav-icons/${icon}.svg`;
+
   return (
-    <section className="page content-page">
-      <h1>Channel content</h1>
-      <div className="filter-row"><button className="filter-icon">☷ <b>1</b></button><button>Sort by: Most viewed⌄</button><button>Visibility⌄</button><button>Views⌄</button></div>
-      <div className="content-grid">{videos.map((video,i)=><button className="content-tile" onClick={openVideo} key={video.title}><Thumb color={video.color} tall/><div><h2>{video.title}</h2><p>{video.date} · Published</p><span>▥ {video.views}</span><span>♡ {i===0?"53":i===5?"1":"0"}</span><span>▢ 0</span></div></button>)}</div>
+    <button className={`bottom-nav-item${active ? " active" : ""}`} aria-label={label} aria-current={active ? "page" : undefined} onClick={onSelect}>
+      <img src={iconSrc} alt="" aria-hidden="true" />
+      <span>{label}</span>
+    </button>
+  );
+}
+
+function BottomNavigation({ active, onSelect }: { active: PageName; onSelect: (page: PageName) => void }) {
+  return <nav className="bottom-navigation" aria-label="Studio navigation">{navItems.map(([icon, label]) => <BottomNavItem key={label} icon={icon} label={label} active={active === label} onSelect={() => onSelect(label)} />)}</nav>;
+}
+
+function DashboardPage({ avatarSrc, onAvatarChange, cardImages, onCardImageChange, onOpenVideo }: { avatarSrc: string; onAvatarChange: (file: File, preview: string) => void; cardImages: Array<{ file: File; src: string } | undefined>; onCardImageChange: (index: number, file: File, preview: string) => void; onOpenVideo: (index: number) => void }) {
+  return (
+    <>
+      <ChannelProfile avatarSrc={avatarSrc} onAvatarChange={onAvatarChange} />
+      <AnalyticsHeader />
+      <section className="metrics-grid"><MetricCard label="Views" value="2.5K" status="down" /><MetricCard label="Watch time (hours)" value="9.2" /></section>
+      <h2 className="latest-title">Latest published content</h2>
+      <section className="published-content-list">{publishedVideos.map((video, index) => <PublishedContentCard key={index} video={video} imageSrc={cardImages[index]?.src} onImageChange={(file, preview) => onCardImageChange(index, file, preview)} onOpen={() => onOpenVideo(index)} />)}</section>
+    </>
+  );
+}
+
+function VideoDetailPage({ video, imageSrc, editMode, onBack, onToggleEdit, onOpenAnalytics, onImageChange }: { video: PublishedVideo; imageSrc?: string; editMode: boolean; onBack: () => void; onToggleEdit: () => void; onOpenAnalytics: () => void; onImageChange: (file: File, preview: string) => void }) {
+  const imageInputRef = useRef<HTMLInputElement>(null);
+
+  function handleImageUpload(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file || !["image/png", "image/jpeg", "image/webp"].includes(file.type)) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") onImageChange(file, reader.result);
+    };
+    reader.readAsDataURL(file);
+    event.target.value = "";
+  }
+
+  return (
+    <section className="video-detail-page">
+      <header className="detail-toolbar">
+        <button type="button" aria-label="Back to dashboard" onClick={onBack}><SvgIcon name="detail-back" size={30} /></button>
+        <div>
+          <button className={editMode ? "detail-editing" : ""} type="button" aria-label={editMode ? "Save changes" : "Edit video details"} aria-pressed={editMode} onClick={onToggleEdit}><SvgIcon name="detail-edit" size={29} /></button>
+          <button type="button" aria-label="Share video"><SvgIcon name="detail-share" size={31} /></button>
+          <button type="button" aria-label="View on YouTube"><SvgIcon name="detail-video" size={30} /></button>
+        </div>
+      </header>
+
+      <button className="detail-preview" type="button" aria-label="Change detail thumbnail" onClick={() => imageInputRef.current?.click()}>
+        {imageSrc ? <img className="detail-uploaded-image" src={imageSrc} alt="Video thumbnail" /> : <img className="detail-reference-image" src="/video-detail-reference.jpeg" alt="Video thumbnail" />}
+        <span className="detail-duration">0:30</span>
+      </button>
+      <input ref={imageInputRef} type="file" accept="image/png,image/jpeg,image/webp" onChange={handleImageUpload} hidden />
+
+      <div className="detail-copy">
+        <h1>{video.title}</h1>
+        <p>February 27, 2024 • Published</p>
+      </div>
+
+      <section className="detail-card detail-info-card">
+        <div className="detail-info-row"><span>Visibility</span><strong><SvgIcon name="detail-public" size={22} />Public</strong></div>
+        <div className="detail-info-row"><span>Notices</span><strong><SvgIcon name="detail-info" size={22} />Other notices</strong></div>
+      </section>
+
+      <section className="detail-card detail-analytics-card" role="button" tabIndex={0} aria-label="Open video analytics" onClick={() => { if (!editMode) onOpenAnalytics(); }} onKeyDown={(event) => { if (!editMode && (event.key === "Enter" || event.key === " ")) onOpenAnalytics(); }}>
+        <h2>Analytics</h2>
+        <p>Since published</p>
+        <div><span>Views</span><strong>{video.views}<SvgIcon name="check-circle-green" size={21} /></strong></div>
+        <div><span>Watch time (hours)</span><strong>0.0<SvgIcon name="check-circle-green" size={21} /></strong></div>
+      </section>
+
+      <section className="detail-card detail-comments-card">
+        <div className="detail-comments-heading"><h2>Comments</h2><button type="button"><span>View all</span></button></div>
+        <div className="detail-empty-comments"><span>No unresponded comments</span></div>
+      </section>
     </section>
   );
 }
 
-function OverviewAnalytics() {
-  return <><div className="kpi-grid"><Card><span>Views</span><strong>1,286</strong><small>— Typical performance</small></Card><Card><span>Watch time (hours)</span><strong>4.2</strong><small>0.8 more than usual</small></Card><Card><span>Subscribers</span><strong className="green">+3</strong><small>200% more than previous 28 days</small></Card></div><Card className="wide-card"><h2>Your channel got 1,286 views in the last 28 days</h2><TrendChart/><div className="chart-legend"><span>Views</span><b>1,286</b></div></Card><div className="analytics-columns"><Card><h2>Your top content in this period</h2>{videos.slice(0,5).map(v=><div className="video-row compact" key={v.title}><Thumb color={v.color}/><p>{v.title}</p><b>{v.views}</b></div>)}</Card><Card className="realtime"><h2>Realtime</h2><strong>161</strong><span>Views · 48 hours</span><Bars/></Card></div></>;
+function EditableLineChart({ data, max, color, editMode, fill = false, onChange }: { data: number[]; max: number; color: string; editMode: boolean; fill?: boolean; onChange: (next: number[]) => void }) {
+  const chartRef = useRef<SVGSVGElement>(null);
+  const draggingRef = useRef(false);
+  const width = 300;
+  const height = 132;
+  const points = data.map((value, index) => `${(index / Math.max(1, data.length - 1)) * width},${height - (Math.min(max, Math.max(0, value)) / max) * height}`).join(" ");
+
+  function reshapeChart(event: React.PointerEvent<SVGSVGElement>) {
+    if (!editMode || !chartRef.current) return;
+    const rect = chartRef.current.getBoundingClientRect();
+    const x = Math.min(width, Math.max(0, ((event.clientX - rect.left) / rect.width) * width));
+    const y = Math.min(height, Math.max(0, ((event.clientY - rect.top) / rect.height) * height));
+    const index = Math.round((x / width) * Math.max(1, data.length - 1));
+    const next = [...data];
+    next[index] = Math.round((1 - y / height) * max);
+    onChange(next);
+  }
+
+  function startReshaping(event: React.PointerEvent<SVGSVGElement>) {
+    if (!editMode) return;
+    draggingRef.current = true;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    reshapeChart(event);
+  }
+
+  function continueReshaping(event: React.PointerEvent<SVGSVGElement>) {
+    if (draggingRef.current) reshapeChart(event);
+  }
+
+  function stopReshaping(event: React.PointerEvent<SVGSVGElement>) {
+    draggingRef.current = false;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+  }
+
+  return (
+    <svg ref={chartRef} className={`editable-line-chart${editMode ? " chart-editing" : ""}`} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" onPointerDown={startReshaping} onPointerMove={continueReshaping} onPointerUp={stopReshaping} onPointerCancel={stopReshaping} aria-label={editMode ? "Editable graph. Drag the circular points to reshape it." : "Analytics graph"}>
+      {[0, 44, 88, 132].map((y) => <line key={y} x1="0" y1={y} x2={width} y2={y} stroke="#555" strokeWidth="1" />)}
+      {fill && <polygon points={`0,${height} ${points} ${width},${height}`} fill="rgba(120,120,120,.42)" />}
+      <polyline points={points} fill="none" stroke={color} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
+      {editMode && data.map((value, index) => (
+        <circle key={index} cx={(index / Math.max(1, data.length - 1)) * width} cy={height - (Math.min(max, Math.max(0, value)) / max) * height} r="5.5" fill={color} stroke="#f1f1f1" strokeWidth="1.5" />
+      ))}
+    </svg>
+  );
 }
 
-function ContentAnalytics() {
-  return <><Card className="wide-card"><h2>How viewers find your content</h2><p className="subtle">Views · Last 28 days</p><div className="traffic-list"><ProgressRow label="Shorts feed" value="78.4%" width={78}/><ProgressRow label="YouTube search" value="8.2%" width={8}/><ProgressRow label="Browse features" value="5.7%" width={6}/><ProgressRow label="Channel pages" value="4.1%" width={4}/><ProgressRow label="Other" value="3.6%" width={4}/></div></Card><div className="analytics-columns"><Card><h2>Impressions and how they led to watch time</h2><div className="funnel"><span>Impressions <b>6.1K</b></span><span>2.7% click-through rate</span><span>Views from impressions <b>165</b></span><span>1:14 average view duration</span></div></Card><Card><h2>Top remixed</h2><p className="empty-state">No remixes to show for this period</p></Card></div></>;
+function EngagementMetricCard({ label, value, note, yLabels, xStart, xEnd, data, max, color = "#eb3b98", editMode, onChange }: { label: string; value: string; note?: string; yLabels: string[]; xStart: string; xEnd: string; data: number[]; max: number; color?: string; editMode: boolean; onChange: (data: number[]) => void }) {
+  return (
+    <article className="engagement-metric-card">
+      <span>{label}</span><strong>{value}<SvgIcon name="check-circle-green" size={20} /></strong>{note && <p>{note}</p>}
+      <div className="chart-shell engagement-chart-shell">
+        <div className="chart-y-labels">{yLabels.map((item) => <span key={item}>{item}</span>)}</div>
+        <EditableLineChart data={data} max={max} color={color} fill editMode={editMode} onChange={onChange} />
+        <div className="chart-x-labels"><span>{xStart}</span><span>{xEnd}</span></div>
+      </div>
+    </article>
+  );
 }
 
-function AudienceAnalytics({ openGeography }: { openGeography:()=>void }) {
-  return <><div className="kpi-grid"><Card><span>Monthly audience</span><strong>1K</strong><TrendChart magenta/></Card><Card><span>Subscribers</span><strong className="green">+3</strong><TrendChart magenta/></Card></div><Card className="wide-card"><h2>Audience by watch behavior</h2><p className="subtle">Monthly audience · Aug 19, 2026</p><ProgressRow label="New viewers" value="95.3%" width={95}/><ProgressRow label="Casual viewers" value="4.6%" width={5}/><ProgressRow label="Regular viewers" value="< 0.1%" width={1}/></Card><div className="analytics-columns"><Card><h2>Popular with new viewers</h2><p className="subtle">Views · Last 28 days</p>{videos.slice(0,5).map(v=><div className="video-row compact" key={v.title}><Thumb color={v.color}/><p>{v.title}</p><b>{v.views}</b></div>)}</Card><Card><div className="metric-head"><h2>Geography</h2><span>Views · Last 28 days</span></div><ProgressRow label="Philippines" value="7.0%" width={7}/><ProgressRow label="Indonesia" value="5.1%" width={5}/><ProgressRow label="India" value="4.1%" width={4}/><button className="link-button" onClick={openGeography}>SEE MORE</button></Card><Card><h2>When your viewers are on YouTube</h2><p className="subtle">Your local time (GMT +0530) · Last 28 days</p><p className="empty-state">Not enough data to show this report</p></Card><Card><h2>Watch time from subscribers</h2><ProgressRow label="Not subscribed" value="99.3%" width={99}/><ProgressRow label="Subscribed" value="0.7%" width={1}/></Card></div></>;
+function AudiencePercentageCard({ title, subtitle, rows }: { title: string; subtitle: string; rows: Array<[string, string]> }) {
+  return (
+    <article className="audience-card audience-percentage-card">
+      <h2>{title}</h2><p>{subtitle}</p>
+      <div className="audience-rows">{rows.map(([label, value]) => <div className="audience-row" key={label}><div><span>{label}</span><strong>{value}</strong></div><div className="audience-progress"><i style={{ width: value }} /></div></div>)}</div>
+    </article>
+  );
 }
 
-function TrendsAnalytics() { return <><Card className="wide-card"><h2>What your audience is searching for</h2><p className="subtle">Based on searches across YouTube · Last 28 days</p><div className="search-chips"><span>minecraft shorts</span><span>mythpat minecraft</span><span>minecraft hacks</span><span>ender dragon</span></div></Card><Card><h2>Breakout videos</h2>{videos.slice(0,4).map(v=><div className="video-row compact" key={v.title}><Thumb color={v.color}/><p>{v.title}</p><b>High</b></div>)}</Card></> }
+type VideoAnalyticsTab = "Overview" | "Reach" | "Engagement" | "Audience";
 
-function Analytics({ openGeography }: { openGeography:()=>void }) {
-  const [tab,setTab]=useState<AnalyticsTab>("Overview");
-  return <section className="page analytics-page"><div className="title-row"><h1>Channel analytics</h1><button className="date-button">Last 28 days⌄<small>Jul 23 – Aug 19, 2026</small></button></div><TabBar items={["Overview","Content","Audience","Trends"] as const} active={tab} onChange={setTab}/>{tab==="Overview"&&<OverviewAnalytics/>}{tab==="Content"&&<ContentAnalytics/>}{tab==="Audience"&&<AudienceAnalytics openGeography={openGeography}/>} {tab==="Trends"&&<TrendsAnalytics/>}</section>;
+function VideoAnalyticsPage({ video, imageSrc, graphData, analyticsTab, editMode, onBack, onToggleEdit, onAnalyticsTabChange, onGraphChange }: { video: PublishedVideo; imageSrc?: string; graphData: VideoGraphData; analyticsTab: VideoAnalyticsTab; editMode: boolean; onBack: () => void; onToggleEdit: () => void; onAnalyticsTabChange: (tab: VideoAnalyticsTab) => void; onGraphChange: (key: keyof VideoGraphData, data: number[]) => void }) {
+  const titleTapCountRef = useRef(0);
+  const titleTapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const analyticsCarouselRef = useRef<HTMLDivElement>(null);
+  const engagementCarouselRef = useRef<HTMLDivElement>(null);
+  const audienceCarouselRef = useRef<HTMLDivElement>(null);
+  const [activeChartCard, setActiveChartCard] = useState(0);
+  const [activeEngagementCard, setActiveEngagementCard] = useState(0);
+  const [activeAudienceCard, setActiveAudienceCard] = useState(0);
+
+  function handleTitleTap() {
+    titleTapCountRef.current += 1;
+    if (titleTapCountRef.current >= 2) {
+      if (titleTapTimerRef.current) clearTimeout(titleTapTimerRef.current);
+      titleTapCountRef.current = 0;
+      titleTapTimerRef.current = null;
+      onToggleEdit();
+      return;
+    }
+    if (titleTapTimerRef.current) clearTimeout(titleTapTimerRef.current);
+    titleTapTimerRef.current = setTimeout(() => {
+      titleTapCountRef.current = 0;
+      titleTapTimerRef.current = null;
+    }, 700);
+  }
+
+  function syncCarouselDot() {
+    const carousel = analyticsCarouselRef.current;
+    if (!carousel) return;
+    const cardWidth = carousel.querySelector<HTMLElement>(".overview-chart-card")?.offsetWidth || 344;
+    const gap = 10;
+    setActiveChartCard(Math.max(0, Math.min(1, Math.round(carousel.scrollLeft / (cardWidth + gap)))));
+  }
+
+  function selectChartCard(index: number) {
+    const carousel = analyticsCarouselRef.current;
+    if (!carousel) return;
+    const cardWidth = carousel.querySelector<HTMLElement>(".overview-chart-card")?.offsetWidth || 344;
+    carousel.scrollTo({ left: index * (cardWidth + 10), behavior: "smooth" });
+    setActiveChartCard(index);
+  }
+
+  function syncEngagementDot() {
+    const carousel = engagementCarouselRef.current;
+    if (!carousel) return;
+    const cardWidth = carousel.querySelector<HTMLElement>(".engagement-metric-card")?.offsetWidth || 344;
+    setActiveEngagementCard(Math.max(0, Math.min(3, Math.round(carousel.scrollLeft / (cardWidth + 10)))));
+  }
+
+  function selectEngagementCard(index: number) {
+    const carousel = engagementCarouselRef.current;
+    if (!carousel) return;
+    const cardWidth = carousel.querySelector<HTMLElement>(".engagement-metric-card")?.offsetWidth || 344;
+    carousel.scrollTo({ left: index * (cardWidth + 10), behavior: "smooth" });
+    setActiveEngagementCard(index);
+  }
+
+  function syncAudienceDot() {
+    const carousel = audienceCarouselRef.current;
+    if (!carousel) return;
+    const cardWidth = carousel.querySelector<HTMLElement>(".engagement-metric-card")?.offsetWidth || 344;
+    setActiveAudienceCard(Math.max(0, Math.min(1, Math.round(carousel.scrollLeft / (cardWidth + 10)))));
+  }
+
+  function selectAudienceCard(index: number) {
+    const carousel = audienceCarouselRef.current;
+    if (!carousel) return;
+    const cardWidth = carousel.querySelector<HTMLElement>(".engagement-metric-card")?.offsetWidth || 344;
+    carousel.scrollTo({ left: index * (cardWidth + 10), behavior: "smooth" });
+    setActiveAudienceCard(index);
+  }
+
+  function selectAnalyticsTab(tab: VideoAnalyticsTab) {
+    if (editMode) return;
+    onAnalyticsTabChange(tab);
+    document.querySelector(".screen-scroll")?.scrollTo({ top: 0 });
+  }
+
+  return (
+    <section className="video-analytics-page">
+      <header className="video-analytics-header">
+        <button type="button" aria-label="Back to pencil page" onClick={onBack}><SvgIcon name="detail-back" size={30} /></button>
+        <img src={imageSrc || "/video-detail-reference.jpeg"} alt="Video thumbnail" />
+        <button className={editMode ? "analytics-title editing" : "analytics-title"} type="button" onClick={handleTitleTap} aria-label={editMode ? "Double tap to save analytics" : "Double tap to edit analytics"} aria-pressed={editMode}><span>{video.title}</span></button>
+      </header>
+
+      <nav className="analytics-tabs" aria-label="Video analytics sections">
+        {(["Overview", "Reach", "Engagement", "Audience"] as const).map((tab) => <button key={tab} className={analyticsTab === tab ? "active" : ""} type="button" aria-current={analyticsTab === tab ? "page" : undefined} onClick={() => selectAnalyticsTab(tab)}><span>{tab}</span></button>)}
+      </nav>
+
+      {analyticsTab === "Overview" ? <>
+        <h1 className="analytics-summary">This Short has gotten {video.views} views since it was published</h1>
+
+        <div ref={analyticsCarouselRef} className="analytics-carousel" aria-label="Analytics cards" onScroll={syncCarouselDot}>
+          <article className="overview-chart-card">
+            <span>Views</span><strong>{video.views}<SvgIcon name="check-circle-green" size={20} /></strong><p>About the same as usual</p>
+            <div className="chart-shell views-chart-shell">
+              <div className="chart-y-labels"><span>21</span><span>14</span><span>7</span><span>0</span></div>
+              <EditableLineChart data={graphData.views} max={21} color="#00a9c7" fill editMode={editMode} onChange={(data) => onGraphChange("views", data)} />
+              <div className="chart-x-labels"><span>0</span><span>907 days</span></div>
+            </div>
+          </article>
+          <article className="overview-chart-card">
+            <span>Subscribers</span><strong>0</strong>
+            <div className="chart-shell subscriber-chart-shell">
+              <div className="chart-y-labels"><span>3</span><span>2</span><span>1</span><span>0</span></div>
+              <EditableLineChart data={graphData.subscribers} max={3} color="#00a9c7" editMode={editMode} onChange={(data) => onGraphChange("subscribers", data)} />
+              <div className="chart-x-labels"><span>0</span><span>907 days</span></div>
+            </div>
+          </article>
+        </div>
+        <div className="carousel-dots" aria-label="Choose analytics graph">
+          <button className={activeChartCard === 0 ? "active" : ""} type="button" aria-label="Show Views graph" aria-current={activeChartCard === 0 ? "true" : undefined} onClick={() => selectChartCard(0)} />
+          <button className={activeChartCard === 1 ? "active" : ""} type="button" aria-label="Show Subscribers graph" aria-current={activeChartCard === 1 ? "true" : undefined} onClick={() => selectChartCard(1)} />
+        </div>
+
+        <article className="analytics-large-card retention-card">
+          <div className="retention-heading"><h2>Audience Retention</h2><strong>0:19 (65.0%)</strong></div><p>Average view duration · Lifetime</p>
+          <div className="chart-shell retention-chart-shell">
+            <div className="chart-y-labels"><span>100%</span><span>66%</span><span>33%</span><span>0%</span></div>
+            <EditableLineChart data={graphData.retention} max={140} color="#d24b90" editMode={editMode} onChange={(data) => onGraphChange("retention", data)} />
+            <div className="chart-x-labels"><span>0:00</span><span>0:30</span></div>
+          </div>
+        </article>
+
+        <article className="analytics-large-card realtime-card">
+          <h2>Realtime</h2><strong>0</strong><p>Views · 48 hours</p><div className="realtime-rule" /><span>Nothing to show for these dates</span>
+        </article>
+      </> : analyticsTab === "Reach" ? (
+        <section className="reach-page-content">
+          <article className="reach-card reach-views-card">
+            <span>Views</span><strong>4.8K<SvgIcon name="check-circle-green" size={21} /></strong><p>About the same as usual</p>
+            <div className="chart-shell reach-chart-shell">
+              <div className="chart-y-labels"><span>5.7K</span><span>3.8K</span><span>1.9K</span><span>0</span></div>
+              <EditableLineChart data={graphData.reachViews || defaultVideoGraphs.reachViews} max={90} color="#6254db" fill editMode={editMode} onChange={(data) => onGraphChange("reachViews", data)} />
+              <div className="chart-x-labels"><span>0</span><span>634 days</span></div>
+            </div>
+          </article>
+
+          <article className="reach-card traffic-card">
+            <h2>How viewers find this video</h2><p>Views · Since published</p>
+            <div className="traffic-bar" aria-label="Traffic source distribution"><i /><i /><i /><i /><i /></div>
+            <div className="traffic-list">
+              <div><i /><span>YouTube search</span><strong>80.9%</strong></div><div><i /><span>Shorts feed</span><strong>17.1%</strong></div><div><i /><span>Channel pages</span><strong>0.7%</strong></div><div><i /><span>Hashtag pages</span><strong>0.5%</strong></div><div><i /><span>Other</span><strong>0.8%</strong></div>
+            </div>
+          </article>
+
+          <article className="reach-card source-card">
+            <h2>External sites or apps</h2><p>Views · Since published</p><div className="source-row"><span>Google Search</span><strong>87.5%</strong></div><div className="source-progress"><i style={{ width: "87.5%" }} /></div>
+          </article>
+
+          <article className="reach-card search-terms-card">
+            <h2>YouTube search terms</h2><p>Views · Since published</p>
+            {[["red sun", "28.6%"], ["sun red", "20.4%"], ["red sun minecraft", "6.5%"]].map(([term, value]) => <div className="term-row" key={term}><div><span>{term}</span><strong>{value}</strong></div><div className="source-progress"><i style={{ width: value }} /></div></div>)}
+          </article>
+
+          <article className="reach-card suggesting-card">
+            <h2>Content suggesting this Short</h2><p>Views · Since published</p><div><img src={imageSrc || "/video-detail-reference.jpeg"} alt="Suggested video thumbnail" /><span>Tôi Săn Lùng Những Ngọn Giáo...</span><strong>40.0%</strong></div>
+          </article>
+
+          <article className="reach-card playlists-card">
+            <h2>Playlists featuring this Short</h2><p>Views · Since published</p><div><SvgIcon name="detail-info" size={25} /><span>Not enough traffic data to show this report</span></div>
+          </article>
+        </section>
+      ) : analyticsTab === "Engagement" ? (
+        <section className="engagement-page-content">
+          <div ref={engagementCarouselRef} className="engagement-carousel" aria-label="Engagement metric graphs" onScroll={syncEngagementDot}>
+            <EngagementMetricCard label="Engaged views" value="332" yLabels={["360", "240", "120", "0"]} xStart="0" xEnd="142 days" data={graphData.engagedViews || defaultVideoGraphs.engagedViews} max={360} editMode={editMode} onChange={(data) => onGraphChange("engagedViews", data)} />
+            <EngagementMetricCard label="Unique viewers" value="306" yLabels={["300", "200", "100", "0"]} xStart="Apr 1" xEnd="Aug 22" data={graphData.uniqueViewers || defaultVideoGraphs.uniqueViewers} max={300} editMode={editMode} onChange={(data) => onGraphChange("uniqueViewers", data)} />
+            <EngagementMetricCard label="Watch time (hours)" value="1.3" note="About the same as usual" yLabels={["2.0", "1.3", "0.6", "0.0"]} xStart="0" xEnd="142 days" data={graphData.watchTime || defaultVideoGraphs.watchTime} max={2} editMode={editMode} onChange={(data) => onGraphChange("watchTime", data)} />
+            <EngagementMetricCard label="Average view duration" value="0:11" note="About the same as usual" yLabels={["0:24", "0:16", "0:08", "0:00"]} xStart="0" xEnd="142 days" data={graphData.averageDuration || defaultVideoGraphs.averageDuration} max={24} editMode={editMode} onChange={(data) => onGraphChange("averageDuration", data)} />
+          </div>
+          <div className="engagement-dots" aria-label="Choose engagement graph">{[0, 1, 2, 3].map((index) => <button key={index} className={activeEngagementCard === index ? "active" : ""} type="button" aria-label={`Show engagement graph ${index + 1}`} aria-current={activeEngagementCard === index ? "true" : undefined} onClick={() => selectEngagementCard(index)} />)}</div>
+
+          <article className="engagement-card hype-card">
+            <h2>Hype</h2><p>First 7 days</p><div><section><strong>0</strong><span>Hype points</span></section><section><strong>0</strong><span>Hypes</span></section></div>
+          </article>
+
+          <article className="engagement-card viewers-engaged-card">
+            <h2>How viewers engaged</h2><p>Since published</p><div className="engaged-bar"><i /><i /></div>
+            <div className="engaged-values"><section><strong>32.0%</strong><span>Stayed to watch</span></section><section><strong>68.0%</strong><span>Swiped away</span></section></div>
+          </article>
+
+          <article className="analytics-large-card engagement-retention-card">
+            <div className="retention-heading"><h2>Audience Retention</h2><strong>0:11 (40.8%)</strong></div><p>Average view duration · Lifetime</p>
+            <div className="chart-shell retention-chart-shell">
+              <div className="chart-y-labels"><span>100%</span><span>66%</span><span>33%</span><span>0%</span></div>
+              <EditableLineChart data={graphData.engagementRetention || defaultVideoGraphs.engagementRetention} max={120} color="#d24b90" editMode={editMode} onChange={(data) => onGraphChange("engagementRetention", data)} />
+              <div className="chart-x-labels"><span>0:00</span><span>0:28</span></div>
+            </div>
+          </article>
+        </section>
+      ) : analyticsTab === "Audience" ? (
+        <section className="audience-page-content">
+          <div ref={audienceCarouselRef} className="engagement-carousel" aria-label="Audience metric graphs" onScroll={syncAudienceDot}>
+            <EngagementMetricCard label="Unique viewers" value="306" yLabels={["300", "200", "100", "0"]} xStart="Apr 1" xEnd="Aug 22" data={graphData.uniqueViewers || defaultVideoGraphs.uniqueViewers} max={300} color="#932bc5" editMode={editMode} onChange={(data) => onGraphChange("uniqueViewers", data)} />
+            <EngagementMetricCard label="Subscribers" value="0" yLabels={["3", "2", "1", "0"]} xStart="0" xEnd="142 days" data={graphData.subscribers || defaultVideoGraphs.subscribers} max={3} color="#932bc5" editMode={editMode} onChange={(data) => onGraphChange("subscribers", data)} />
+          </div>
+          <div className="engagement-dots" aria-label="Choose audience graph">{[0, 1].map((index) => <button key={index} className={activeAudienceCard === index ? "active" : ""} type="button" aria-label={`Show audience graph ${index + 1}`} aria-current={activeAudienceCard === index ? "true" : undefined} onClick={() => selectAudienceCard(index)} />)}</div>
+
+          <article className="audience-card audience-report-card">
+            <h2>Audience by watch behavior</h2><p>Unique viewers · Since published</p><div><SvgIcon name="detail-info" size={25} /><span>Not enough data to show this report</span></div>
+          </article>
+          <article className="audience-card viewers-also-card"><h2>Viewers also watch</h2><p>Last 90 days</p><span>Not enough data to show this report</span></article>
+
+          <article className="audience-card device-card">
+            <h2>Device type</h2><p>Watch time (hours) · Since published</p><div className="device-bar"><i /><i /><i /><i /></div>
+            <div className="device-list"><div><i /><span>Mobile</span><strong>77.8%</strong></div><div><i /><span>Tablet</span><strong>12.6%</strong></div><div><i /><span>Computer</span><strong>4.9%</strong></div><div><i /><span>TV</span><strong>4.5%</strong></div></div>
+          </article>
+
+          <AudiencePercentageCard title="Age" subtitle="Since published · Views" rows={[["13–17 years", "0.0%"], ["18–24 years", "45.9%"], ["25–34 years", "54.1%"], ["35–44 years", "0.0%"], ["45–54 years", "0.0%"], ["55–64 years", "0.0%"], ["65+ years", "0.0%"]]} />
+          <AudiencePercentageCard title="Gender" subtitle="Since published · Views" rows={[["Male", "100.0%"], ["Female", "0.0%"], ["User-specified", "0.0%"]]} />
+          <AudiencePercentageCard title="Top geographies" subtitle="Views · Since published" rows={[["India", "42.0%"], ["Philippines", "5.7%"], ["United States", "2.7%"]]} />
+          <AudiencePercentageCard title="Top subtitle/CC languages" subtitle="Views · Since published" rows={[["No subtitles/CC", "96.9%"], ["English", "3.1%"]]} />
+          <AudiencePercentageCard title="Watch time from subscribers" subtitle="Watch time (hours) · Since published" rows={[["Not subscribed", "98.6%"], ["Subscribed", "1.4%"]]} />
+        </section>
+      ) : <section className="analytics-coming-card"><h2>{analyticsTab}</h2><p>Analytics details will appear here.</p></section>}
+    </section>
+  );
 }
 
-function Geography({ back }: { back:()=>void }) {
-  return <section className="page detail-page"><div className="back-title"><button onClick={back} aria-label="Back">←</button><h1>Geography</h1></div><div className="filter-row"><button>28D⌄</button><button className="selected">All</button><button>Videos</button><button>Shorts</button></div><Card className="wide-card geography-card"><div className="metric-head"><h2>Views by geography</h2><span>Views</span></div>{[["Philippines","7.0%",7],["Indonesia","5.1%",5],["India","4.1%",4],["United States","3.5%",3.5],["Pakistan","3.0%",3],["Nepal","2.3%",2.3],["Bangladesh","2.0%",2]].map(([l,v,w])=><ProgressRow key={String(l)} label={String(l)} value={String(v)} width={Number(w)*7}/>)}</Card></section>;
-}
+const studioPages: Record<Exclude<PageName, "Dashboard">, { title: string; subtitle: string; cards: Array<[string, string, string]> }> = {
+  Content: {
+    title: "Content",
+    subtitle: "Your latest uploads",
+    cards: [
+      ["Earn Dollars through Whop 🤑🤑", "11 views", "Published"],
+      ["Funding Pips @fundingpipscom", "8 views", "Published"],
+      ["How creators grow online", "5 views", "Draft"],
+    ],
+  },
+  Analytics: {
+    title: "Analytics",
+    subtitle: "Last 28 days",
+    cards: [
+      ["Views", "2.4K", "About the same as usual"],
+      ["Watch time (hours)", "9.0", "About the same as usual"],
+      ["Subscribers", "+12", "28% more than previous period"],
+    ],
+  },
+  Community: {
+    title: "Community",
+    subtitle: "Comments and mentions",
+    cards: [
+      ["Comments", "1", "No unresponded comments"],
+      ["Mentions", "0", "No new mentions"],
+      ["Subscribers", "2,328", "Your channel community"],
+    ],
+  },
+  Earn: {
+    title: "Earn",
+    subtitle: "Channel monetization",
+    cards: [
+      ["Estimated revenue", "$0.00", "Last 28 days"],
+      ["Watch page ads", "Not active", "Keep growing your channel"],
+      ["Fan funding", "Not active", "Eligibility requirements apply"],
+    ],
+  },
+};
 
-function VideoOverview() { return <><div className="kpi-grid"><Card><span>Views</span><strong>11</strong></Card><Card><span>Watch time (hours)</span><strong>0.1</strong></Card><Card><span>Subscribers</span><strong>0</strong></Card></div><Card className="wide-card"><h2>Views</h2><TrendChart magenta/><div className="chart-legend"><span>First 24 hours</span><b>11</b></div></Card><Card><h2>Audience Retention</h2><b className="retention-number">0:37 (76.6%)</b><p className="subtle">Average view duration · Lifetime</p><TrendChart magenta/></Card><Card><h2>Realtime</h2><strong>0</strong><p className="subtle">Views · 48 hours</p><p className="empty-state">Nothing to show for these dates</p></Card></> }
-
-function VideoReach() { return <><div className="kpi-grid"><Card><span>Shown in feed</span><strong>21</strong></Card><Card><span>Viewed vs swiped away</span><strong>84.8%</strong></Card></div><Card><h2>External sites or apps</h2><p className="subtle">Views · Since published</p><p className="empty-state">Not enough traffic data to show this report</p></Card><Card><h2>YouTube search terms</h2><ProgressRow label="minecraft" value="7.5%" width={75}/><ProgressRow label="shorts" value="2.7%" width={27}/><ProgressRow label="mythpat minecraft" value="1.9%" width={19}/></Card></> }
-
-function VideoEngagement() { return <><Card><h2>Hype</h2><p className="subtle">First 7 days</p><div className="mini-stats"><span><b>0</b>Hype points</span><span><b>0</b>Hypes</span></div></Card><Card><h2>How viewers engaged</h2><p className="subtle">Since published</p><div className="engagement-bar"><i/><em/></div><div className="split-values"><b>84.8%<small>Stayed to watch</small></b><b>15.2%<small>Swiped away</small></b></div></Card><Card><h2>Audience Retention <b className="retention-number">0:37 (76.6%)</b></h2><TrendChart magenta/></Card></> }
-
-function VideoAudience() { return <><Card><h2>Top geographies</h2><p className="subtle">Views · Since published</p><ProgressRow label="India" value="83.6%" width={84}/><ProgressRow label="Pakistan" value="8.0%" width={8}/><ProgressRow label="Nepal" value="3.7%" width={4}/></Card><Card><h2>Top subtitle/CC languages</h2><ProgressRow label="No subtitles/CC" value="99.3%" width={99}/><ProgressRow label="Hindi" value="0.7%" width={1}/></Card><Card><h2>Watch time from subscribers</h2><ProgressRow label="Not subscribed" value="99.9%" width={100}/><ProgressRow label="Subscribed" value="0.1%" width={1}/></Card></> }
-
-function VideoDetails({ back }: { back:()=>void }) {
-  const [tab,setTab]=useState<VideoTab>("Overview");
-  return <section className="page analytics-page detail-page"><div className="video-detail-title"><button onClick={back} aria-label="Back">←</button><Thumb color="#674448"/><div><h1>Can we Hit EnderMan with a arrow?</h1><p>Published Aug 20, 2026</p></div></div><TabBar items={["Overview","Reach","Engagement","Audience"] as const} active={tab} onChange={setTab}/>{tab==="Overview"&&<VideoOverview/>}{tab==="Reach"&&<VideoReach/>}{tab==="Engagement"&&<VideoEngagement/>}{tab==="Audience"&&<VideoAudience/>}</section>;
-}
-
-function Placeholder({ type }: { type:"community"|"earn" }) {
-  const earn=type==="earn"; return <section className="page placeholder-page"><div className="placeholder-icon">{earn?"$":"♧"}</div><h1>{earn?"Earn on YouTube":"Community"}</h1><p>{earn?"Your channel is growing. Keep creating to unlock more earning opportunities.":"Connect with your audience and keep conversations going."}</p><Card><h2>{earn?"Your progress":"Latest comments"}</h2>{earn?<><ProgressRow label="Subscribers" value="3 / 500" width={6}/><ProgressRow label="Public watch hours" value="4 / 3,000" width={2}/></>:videos.slice(0,3).map((v,i)=><div className="comment" key={v.title}><span>{["A","R","K"][i]}</span><div><b>{["Alex Gamer","Riya Plays","Kunal"][i]}</b><p>{["Great short! 🔥","How did you do that?","Amazing Minecraft trick"][i]}</p></div></div>)}</Card></section>;
+function StudioSectionPage({ page }: { page: Exclude<PageName, "Dashboard"> }) {
+  const data = studioPages[page];
+  return (
+    <section className="studio-section-page">
+      <div className="section-page-heading"><h1>{data.title}</h1><span>{data.subtitle}</span></div>
+      {page === "Content" && <div className="content-filter-row"><button className="selected">Videos</button><button>Shorts</button><button>Live</button></div>}
+      <div className="section-page-cards">
+        {data.cards.map(([label, value, note], index) => (
+          <article className="section-data-card" key={label}>
+            {page === "Content" && <div className={`mini-video-thumb variant-${index + 1}`}><SvgIcon name="youtube-play" size={24} /></div>}
+            <div className="section-card-copy"><span>{label}</span><strong>{value}</strong><p>{note}</p></div>
+            <ChevronRight size={22} aria-hidden="true" />
+          </article>
+        ))}
+      </div>
+    </section>
+  );
 }
 
 export default function Home() {
-  const [screen,setScreen]=useState<Screen>("dashboard");
-  const [toast,setToast]=useState("");
-  const showToast=(message:string)=>{setToast(message); window.setTimeout(()=>setToast(""),1800)};
-  const activeMain:Screen = screen==="video"?"content":screen==="geography"?"analytics":screen;
+  const [licenseState, setLicenseState] = useState<"checking" | "locked" | "unlocked">("checking");
+  const [accessCode, setAccessCode] = useState("");
+  const [accessMessage, setAccessMessage] = useState("");
+  const [accessBusy, setAccessBusy] = useState(false);
+  const [activePage, setActivePage] = useState<PageName>("Dashboard");
+  const [selectedVideoIndex, setSelectedVideoIndex] = useState<number | null>(null);
+  const [videoAnalyticsOpen, setVideoAnalyticsOpen] = useState(false);
+  const [videoAnalyticsTab, setVideoAnalyticsTab] = useState<VideoAnalyticsTab>("Overview");
+  const [avatar, setAvatar] = useState<{ file: File | null; src: string }>({ file: null, src: "/top-icons/profile-emoji.svg" });
+  const [cardImages, setCardImages] = useState<Array<{ file: File; src: string } | undefined>>([]);
+  const [editMode, setEditMode] = useState(false);
+  const [savedText, setSavedText] = useState<Partial<Record<string, string[]>>>({});
+  const [videoGraphs, setVideoGraphs] = useState<Record<number, VideoGraphData>>({});
+  const canvasRef = useRef<HTMLElement>(null);
+  const editContextKey = selectedVideoIndex === null ? activePage : videoAnalyticsOpen ? `VideoAnalytics-${selectedVideoIndex}-${videoAnalyticsTab}` : `VideoDetail-${selectedVideoIndex}`;
+
+  useEffect(() => {
+    let cancelled = false;
+    const session = loadLicenseSession();
+    if (!session) {
+      setLicenseState("locked");
+      return;
+    }
+
+    const unlock = () => { if (!cancelled) setLicenseState("unlocked"); };
+    const lock = () => {
+      if (cancelled) return;
+      clearLicenseSession();
+      setLicenseState("locked");
+    };
+
+    if (new Date(session.expiresAt) > new Date()) {
+      unlock();
+      void getLicenseStatus(session.token).catch(async () => {
+        try {
+          await refreshLicense(session);
+          unlock();
+        } catch {
+          lock();
+        }
+      });
+    } else {
+      void refreshLicense(session).then(unlock).catch(lock);
+    }
+
+    return () => { cancelled = true; };
+  }, []);
+
+  function editableElements() {
+    const root = canvasRef.current?.querySelector(".page-content");
+    if (!root) return [] as HTMLElement[];
+    const selector = "h1,h2,h3,p,span,strong,b,small";
+    return Array.from(root.querySelectorAll<HTMLElement>(selector)).filter((element) => !element.querySelector(selector));
+  }
+
+  useEffect(() => {
+    const syncScale = () => {
+      const scale = Math.min(1, window.innerWidth / 436, window.innerHeight / 932);
+      document.documentElement.style.setProperty("--app-scale", String(scale));
+    };
+    syncScale();
+    window.addEventListener("resize", syncScale);
+    canvasRef.current?.querySelector<HTMLElement>(".screen-scroll")?.scrollTo({ top: 0 });
+    try {
+      const stored = window.localStorage.getItem(textStorageKey);
+      if (stored) setSavedText(JSON.parse(stored));
+      const storedGraphs = window.localStorage.getItem("creator-studio-video-graphs-v1");
+      if (storedGraphs) setVideoGraphs(JSON.parse(storedGraphs));
+    } catch {
+      // Keep editing available even when browser storage is disabled.
+    }
+    return () => window.removeEventListener("resize", syncScale);
+  }, []);
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      const elements = editableElements();
+      const values = savedText[editContextKey];
+      values?.forEach((value, index) => {
+        if (elements[index]) elements[index].innerHTML = value;
+      });
+      elements.forEach((element) => {
+        element.contentEditable = editMode ? "true" : "false";
+        element.spellcheck = editMode;
+      });
+      const root = canvasRef.current?.querySelector(".page-content");
+      if (root && !editMode) syncReachPercentageBars(root);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [editContextKey, editMode, savedText]);
+
+  function toggleTextEditing() {
+    if (!editMode) {
+      setEditMode(true);
+      return;
+    }
+
+    const nextSaved = { ...savedText, [editContextKey]: editableElements().map((element) => element.innerHTML) };
+    setSavedText(nextSaved);
+    setEditMode(false);
+    try {
+      window.localStorage.setItem(textStorageKey, JSON.stringify(nextSaved));
+    } catch {
+      // The current page still retains saved text for this session.
+    }
+  }
+
+  function selectPage(page: PageName) {
+    if (editMode) return;
+    setSelectedVideoIndex(null);
+    setVideoAnalyticsOpen(false);
+    setActivePage(page);
+    document.querySelector(".screen-scroll")?.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function openVideo(index: number) {
+    if (editMode) return;
+    setSelectedVideoIndex(index);
+    setVideoAnalyticsOpen(false);
+    setVideoAnalyticsTab("Overview");
+    document.querySelector(".screen-scroll")?.scrollTo({ top: 0 });
+  }
+
+  function closeVideo() {
+    if (editMode) toggleTextEditing();
+    setSelectedVideoIndex(null);
+    setVideoAnalyticsOpen(false);
+    document.querySelector(".screen-scroll")?.scrollTo({ top: 0 });
+  }
+
+  function openVideoAnalytics() {
+    if (editMode || selectedVideoIndex === null) return;
+    setVideoAnalyticsOpen(true);
+    setVideoAnalyticsTab("Overview");
+    document.querySelector(".screen-scroll")?.scrollTo({ top: 0 });
+  }
+
+  function closeVideoAnalytics() {
+    if (editMode) toggleTextEditing();
+    setVideoAnalyticsOpen(false);
+    document.querySelector(".screen-scroll")?.scrollTo({ top: 0 });
+  }
+
+  function updateGraph(videoIndex: number, key: keyof VideoGraphData, data: number[]) {
+    setVideoGraphs((current) => {
+      const next = { ...current, [videoIndex]: { ...(current[videoIndex] || defaultVideoGraphs), [key]: data } };
+      try { window.localStorage.setItem("creator-studio-video-graphs-v1", JSON.stringify(next)); } catch { /* Keep graph changes for this session. */ }
+      return next;
+    });
+  }
+
+  function updateAccessCode(value: string) {
+    const raw = value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12);
+    setAccessCode(raw.match(/.{1,4}/g)?.join("-") ?? raw);
+  }
+
+  async function submitAccessCode(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (accessBusy) return;
+    setAccessBusy(true);
+    setAccessMessage("");
+    try {
+      await activateLicense(accessCode);
+      setLicenseState("unlocked");
+    } catch (error) {
+      setAccessMessage(error instanceof Error ? error.message : "Activation failed.");
+    } finally {
+      setAccessBusy(false);
+    }
+  }
+
+  if (licenseState !== "unlocked") {
+    return (
+      <main className="access-gate">
+        <section className="access-card" aria-live="polite">
+          <img src="/youtube-studio-logo-white.svg" alt="Studio" />
+          <p className="access-eyebrow">Youtube Insight</p>
+          <h1>Enter Access Code</h1>
+          {licenseState === "checking" ? <p className="access-checking">Checking your access…</p> : (
+            <form onSubmit={submitAccessCode}>
+              <label htmlFor="youtube-insight-access-code">Access Code</label>
+              <input id="youtube-insight-access-code" value={accessCode} onChange={(event) => updateAccessCode(event.target.value)} placeholder="A8KD-4F9Q-LX7P" maxLength={14} autoComplete="off" autoCapitalize="characters" spellCheck={false} required autoFocus />
+              {accessMessage && <p className="access-error" role="alert">{accessMessage}</p>}
+              <button type="submit" disabled={accessBusy || accessCode.length !== 14}>{accessBusy ? "Activating…" : "Activate"}</button>
+            </form>
+          )}
+        </section>
+      </main>
+    );
+  }
+
   return (
-    <main className="studio-shell">
-      <header className="topbar"><button className="logo-button" onClick={()=>setScreen("dashboard")} aria-label="Studio dashboard"><Logo/></button><div className="top-actions"><button aria-label="Create" onClick={()=>showToast("Create tools opened")}>＋</button><button aria-label="Notifications" onClick={()=>showToast("You’re all caught up")}>♧<em/></button><button className="avatar" aria-label="Account" onClick={()=>showToast("Mythpat Minecraft")}>😎</button></div></header>
-      {screen==="dashboard"&&<Dashboard openAnalytics={()=>setScreen("analytics")} openVideo={()=>setScreen("video")} openContent={()=>setScreen("content")}/>} {screen==="content"&&<Content openVideo={()=>setScreen("video")}/>} {screen==="analytics"&&<Analytics openGeography={()=>setScreen("geography")}/>} {screen==="geography"&&<Geography back={()=>setScreen("analytics")}/>} {screen==="video"&&<VideoDetails back={()=>setScreen("content")}/>} {screen==="community"&&<Placeholder type="community"/>} {screen==="earn"&&<Placeholder type="earn"/>}
-      <nav className="bottom-nav" aria-label="Main navigation">{navItems.map(item=><button className={activeMain===item.screen?"active":""} onClick={()=>setScreen(item.screen)} key={item.label}><span>{item.icon}</span><small>{item.label}</small></button>)}</nav>
-      {toast&&<div className="toast" role="status">{toast}</div>}
+    <main className={`reference-canvas${editMode ? " text-edit-mode" : ""}`} ref={canvasRef}>
+      <div className="screen-scroll">
+        {selectedVideoIndex === null && <TopHeader editMode={editMode} onToggleEdit={toggleTextEditing} />}
+        <div className="page-content">
+          {selectedVideoIndex !== null ? (
+            videoAnalyticsOpen ? (
+              <VideoAnalyticsPage video={publishedVideos[selectedVideoIndex]} imageSrc={cardImages[selectedVideoIndex]?.src} graphData={videoGraphs[selectedVideoIndex] || defaultVideoGraphs} analyticsTab={videoAnalyticsTab} editMode={editMode} onBack={closeVideoAnalytics} onToggleEdit={toggleTextEditing} onAnalyticsTabChange={setVideoAnalyticsTab} onGraphChange={(key, data) => updateGraph(selectedVideoIndex, key, data)} />
+            ) : (
+              <VideoDetailPage video={publishedVideos[selectedVideoIndex]} imageSrc={cardImages[selectedVideoIndex]?.src} editMode={editMode} onBack={closeVideo} onToggleEdit={toggleTextEditing} onOpenAnalytics={openVideoAnalytics} onImageChange={(file, src) => setCardImages((current) => { const next = [...current]; next[selectedVideoIndex] = { file, src }; return next; })} />
+            )
+          ) : activePage === "Dashboard" ? (
+            <DashboardPage avatarSrc={avatar.src} onAvatarChange={(file, src) => setAvatar({ file, src })} cardImages={cardImages} onCardImageChange={(index, file, src) => setCardImages((current) => { const next = [...current]; next[index] = { file, src }; return next; })} onOpenVideo={openVideo} />
+          ) : <StudioSectionPage page={activePage} />}
+        </div>
+      </div>
+      <BottomNavigation active={activePage} onSelect={selectPage} />
     </main>
   );
 }
