@@ -62,4 +62,7 @@ test("keeps privileged Supabase credentials out of browser code", async () => {
   assert.match(licenseClient, /youtube-insight-device-id-v1/);
   assert.match(page, /activateLicense/);
   assert.match(page, /getLicenseStatus/);
+  assert.match(page, /const LICENSE_RECHECK_MS = 30_000/);
+  assert.match(page, /setInterval\(\(\) => void validateLicense\(\), LICENSE_RECHECK_MS\)/);
+  assert.match(page, /clearInterval\(intervalId\)/);
 });

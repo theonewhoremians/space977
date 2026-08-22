@@ -683,6 +683,8 @@ function StudioSectionPage({ page }: { page: Exclude<PageName, "Dashboard"> }) {
   );
 }
 
+const LICENSE_RECHECK_MS = 30_000;
+
 export default function Home() {
   const [licenseState, setLicenseState] = useState<"checking" | "locked" | "unlocked">("checking");
   const [accessCode, setAccessCode] = useState("");
@@ -702,11 +704,7 @@ export default function Home() {
 
   useEffect(() => {
     let cancelled = false;
-    const session = loadLicenseSession();
-    if (!session) {
-      setLicenseState("locked");
-      return;
-    }
+    let checkInFlight = false;
 
     const unlock = () => { if (!cancelled) setLicenseState("unlocked"); };
     const lock = () => {
@@ -715,21 +713,48 @@ export default function Home() {
       setLicenseState("locked");
     };
 
-    if (new Date(session.expiresAt) > new Date()) {
-      unlock();
-      void getLicenseStatus(session.token).catch(async () => {
-        try {
-          await refreshLicense(session);
-          unlock();
-        } catch {
-          lock();
-        }
-      });
-    } else {
-      void refreshLicense(session).then(unlock).catch(lock);
-    }
+    const validateLicense = async () => {
+      if (cancelled || checkInFlight) return;
+      const session = loadLicenseSession();
+      if (!session) {
+        lock();
+        return;
+      }
 
-    return () => { cancelled = true; };
+      checkInFlight = true;
+      try {
+        if (new Date(session.expiresAt) <= new Date()) {
+          await refreshLicense(session);
+        } else {
+          try {
+            await getLicenseStatus(session.token);
+          } catch {
+            await refreshLicense(session);
+          }
+        }
+        unlock();
+      } catch {
+        lock();
+      } finally {
+        checkInFlight = false;
+      }
+    };
+
+    const recheckWhenVisible = () => {
+      if (document.visibilityState === "visible") void validateLicense();
+    };
+
+    void validateLicense();
+    const intervalId = window.setInterval(() => void validateLicense(), LICENSE_RECHECK_MS);
+    window.addEventListener("focus", recheckWhenVisible);
+    document.addEventListener("visibilitychange", recheckWhenVisible);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", recheckWhenVisible);
+      document.removeEventListener("visibilitychange", recheckWhenVisible);
+    };
   }, []);
 
   function editableElements() {
