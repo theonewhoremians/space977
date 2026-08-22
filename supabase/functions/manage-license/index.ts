@@ -7,7 +7,7 @@ Deno.serve(async (request: Request) => {
   if (request.method !== "POST") return respond({ error: "Method not allowed." }, 405);
   try {
     await requireAdmin(request);
-    const body = await request.respond();
+    const body = await request.json();
     const action = String(body.action ?? "search");
     if (action === "search") {
       const query = String(body.query ?? "").trim().toUpperCase().replace(/[%_,]/g, "");

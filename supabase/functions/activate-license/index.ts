@@ -6,7 +6,7 @@ Deno.serve(async (request: Request) => {
   if (request.method === "OPTIONS") return new Response("ok", { headers: cors(request) });
   if (request.method !== "POST") return respond({ error: "Method not allowed." }, 405);
   try {
-    const body = await request.respond();
+    const body = await request.json();
     const accessCode = cleanCode(body.accessCode);
     const deviceId = cleanDevice(body.deviceId);
     const { data, error } = await db.rpc("activate_license", {

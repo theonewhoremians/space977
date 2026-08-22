@@ -6,7 +6,7 @@ Deno.serve(async (request: Request) => {
   if (request.method !== "POST") return respond({ error: "Method not allowed." }, 405);
   try {
     await requireAdmin(request);
-    const body = await request.respond();
+    const body = await request.json();
     const code = cleanCode(body.accessCode);
     const { data: license, error: findError } = await db.from("licenses").select("id").eq("access_code", code).maybeSingle();
     if (findError) throw findError;

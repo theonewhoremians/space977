@@ -7,7 +7,7 @@ Deno.serve(async (request: Request) => {
   if (request.method !== "POST") return respond({ error: "Method not allowed." }, 405);
   try {
     await requireAdmin(request);
-    const body = await request.respond();
+    const body = await request.json();
     const durationDays = body.durationDays === null ? null : Number(body.durationDays);
     if (durationDays !== null && (!Number.isInteger(durationDays) || durationDays < 1 || durationDays > 36500)) {
       throw new Error("Duration must be between 1 and 36,500 days.");
