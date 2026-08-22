@@ -15,6 +15,20 @@ export type LicenseSession = {
 const SESSION_KEY = "youtube-insight-license-session-v1";
 const DEVICE_KEY = "youtube-insight-device-id-v1";
 
+export class LicenseRequestError extends Error {
+  status: number | undefined;
+
+  constructor(message: string, status?: number) {
+    super(message);
+    this.name = "LicenseRequestError";
+    this.status = status;
+  }
+}
+
+export function canRefreshLicense(error: unknown) {
+  return error instanceof LicenseRequestError && error.status === 401;
+}
+
 async function call<T>(name: string, body?: unknown, method = "POST", token?: string): Promise<T> {
   if (!supabase) throw new Error("Youtube Insight access service is not configured.");
   const { data, error } = await supabase.functions.invoke(name, {
@@ -34,9 +48,9 @@ async function call<T>(name: string, body?: unknown, method = "POST", token?: st
         // Fall back to the SDK message when the response is not JSON.
       }
     }
-    throw new Error(message ?? (data as { error?: string } | null)?.error ?? error.message);
+    throw new LicenseRequestError(message ?? (data as { error?: string } | null)?.error ?? error.message, response?.status);
   }
-  if ((data as { error?: string } | null)?.error) throw new Error((data as { error: string }).error);
+  if ((data as { error?: string } | null)?.error) throw new LicenseRequestError((data as { error: string }).error);
   return data as T;
 }
 

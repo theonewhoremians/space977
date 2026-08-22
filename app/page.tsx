@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import { ChevronRight, ChevronUp } from "lucide-react";
-import { activateLicense, clearLicenseSession, getLicenseStatus, loadLicenseSession, refreshLicense } from "../lib/license";
+import { activateLicense, canRefreshLicense, clearLicenseSession, getLicenseStatus, loadLicenseSession, refreshLicense } from "../lib/license";
 
 const iconPath = (name: string) => `/ui-icons/${name}.svg`;
 const textStorageKey = "creator-studio-saved-text-v3";
@@ -56,10 +56,10 @@ function syncReachPercentageBars(root: ParentNode) {
 }
 
 function SvgIcon({ name, size, className = "" }: { name: string; size: number; className?: string }) {
-  return <img className={`svg-icon ${className}`} src={iconPath(name)} width={size} height={size} alt="" aria-hidden="true" />;
+  return <img className={`svg-icon ${className}`} src={iconPath(name)} width={size} height={size} alt="" aria-hidden="true" contentEditable={false} draggable={false} data-no-edit="true" />;
 }
 
-function TopHeader({ editMode, onToggleEdit }: { editMode: boolean; onToggleEdit: () => void }) {
+function TopHeader({ avatarSrc, editMode, onToggleEdit }: { avatarSrc: string; editMode: boolean; onToggleEdit: () => void }) {
   const logoTapCountRef = useRef(0);
   const logoTapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -83,12 +83,12 @@ function TopHeader({ editMode, onToggleEdit }: { editMode: boolean; onToggleEdit
   return (
     <header className="studio-header">
       <button className={`studio-brand${editMode ? " editing" : ""}`} type="button" onClick={handleLogoTap} aria-pressed={editMode} aria-label={editMode ? "Double tap to save text changes" : "Double tap to edit page text"} title={editMode ? "Double tap to save" : "Double tap to edit"}>
-        <img src="/youtube-studio-logo-white.svg" alt="Studio" />
+        <img src="/youtube-studio-logo-white.svg" alt="Studio" contentEditable={false} draggable={false} data-no-edit="true" />
       </button>
       <div className="header-actions">
         <button aria-label="Create"><SvgIcon name="add-circle" size={25} /></button>
         <button aria-label="Notifications"><SvgIcon name="notification-bell" size={25} /></button>
-        <button className="header-avatar" aria-label="Account"><img src="/top-icons/profile-emoji.svg" alt="" /></button>
+        <button className="header-avatar" aria-label="Account"><img src={avatarSrc} alt="Channel profile" contentEditable={false} draggable={false} data-no-edit="true" /></button>
       </div>
     </header>
   );
@@ -113,7 +113,7 @@ function ChannelProfile({ avatarSrc, onAvatarChange }: { avatarSrc: string; onAv
     <section className="channel-profile-accurate">
       <div className="avatar-uploader">
         <button className="large-avatar" type="button" aria-label="Change channel profile picture" onClick={() => fileInputRef.current?.click()}>
-          <img src={avatarSrc} alt="Channel profile" />
+          <img src={avatarSrc} alt="Channel profile" contentEditable={false} draggable={false} data-no-edit="true" />
         </button>
         <input ref={fileInputRef} type="file" accept="image/png,image/jpeg,image/webp" onChange={handleAvatarUpload} hidden />
       </div>
@@ -127,15 +127,15 @@ function AnalyticsHeader() {
 }
 
 function MetricCard({ label, value, status = "success" }: { label: string; value: string; status?: "success" | "down" }) {
-  return <article className="metric-card-accurate"><span>{label}</span><strong>{value}<SvgIcon name={status === "down" ? "down-circle" : "check-circle-green"} size={18} /></strong></article>;
+  return <article className="metric-card-accurate"><span>{label}</span><strong><span>{value}</span><SvgIcon name={status === "down" ? "down-circle" : "check-circle-green"} size={18} /></strong></article>;
 }
 
 function EngagementStats({ views, likes, comments, expanded, onToggle }: { views: string; likes: string; comments: string; expanded: boolean; onToggle: () => void }) {
   return (
     <div className="engagement-stats">
-      <span><SvgIcon name="views-studio" size={22} />{views}</span>
-      <span><SvgIcon name="likes-studio" size={22} />{likes}</span>
-      <span><SvgIcon name="comments-studio" size={22} />{comments}</span>
+      <span><SvgIcon name="views-studio" size={22} /><span>{views}</span></span>
+      <span><SvgIcon name="likes-studio" size={22} /><span>{likes}</span></span>
+      <span><SvgIcon name="comments-studio" size={22} /><span>{comments}</span></span>
       <button className="content-toggle" type="button" aria-label={expanded ? "Collapse content details" : "Expand content details"} aria-expanded={expanded} onClick={(event) => { event.stopPropagation(); onToggle(); }}>
         <ChevronUp className={expanded ? "" : "collapsed-chevron"} size={22} strokeWidth={2.2} />
       </button>
@@ -256,7 +256,7 @@ function BottomNavItem({ icon, label, active, onSelect }: { icon: string; label:
 
   return (
     <button className={`bottom-nav-item${active ? " active" : ""}`} aria-label={label} aria-current={active ? "page" : undefined} onClick={onSelect}>
-      <img src={iconSrc} alt="" aria-hidden="true" />
+      <img src={iconSrc} alt="" aria-hidden="true" contentEditable={false} draggable={false} data-no-edit="true" />
       <span>{label}</span>
     </button>
   );
@@ -315,15 +315,15 @@ function VideoDetailPage({ video, imageSrc, editMode, onBack, onToggleEdit, onOp
       </div>
 
       <section className="detail-card detail-info-card">
-        <div className="detail-info-row"><span>Visibility</span><strong><SvgIcon name="detail-public" size={22} />Public</strong></div>
-        <div className="detail-info-row"><span>Notices</span><strong><SvgIcon name="detail-info" size={22} />Other notices</strong></div>
+        <div className="detail-info-row"><span>Visibility</span><strong><SvgIcon name="detail-public" size={22} /><span>Public</span></strong></div>
+        <div className="detail-info-row"><span>Notices</span><strong><SvgIcon name="detail-info" size={22} /><span>Other notices</span></strong></div>
       </section>
 
       <section className="detail-card detail-analytics-card" role="button" tabIndex={0} aria-label="Open video analytics" onClick={() => { if (!editMode) onOpenAnalytics(); }} onKeyDown={(event) => { if (!editMode && (event.key === "Enter" || event.key === " ")) onOpenAnalytics(); }}>
         <h2>Analytics</h2>
         <p>Since published</p>
-        <div><span>Views</span><strong>{video.views}<SvgIcon name="check-circle-green" size={21} /></strong></div>
-        <div><span>Watch time (hours)</span><strong>0.0<SvgIcon name="check-circle-green" size={21} /></strong></div>
+        <div><span>Views</span><strong><span>{video.views}</span><SvgIcon name="check-circle-green" size={21} /></strong></div>
+        <div><span>Watch time (hours)</span><strong><span>0.0</span><SvgIcon name="check-circle-green" size={21} /></strong></div>
       </section>
 
       <section className="detail-card detail-comments-card">
@@ -383,7 +383,7 @@ function EditableLineChart({ data, max, color, editMode, fill = false, onChange 
 function EngagementMetricCard({ label, value, note, yLabels, xStart, xEnd, data, max, color = "#eb3b98", editMode, onChange }: { label: string; value: string; note?: string; yLabels: string[]; xStart: string; xEnd: string; data: number[]; max: number; color?: string; editMode: boolean; onChange: (data: number[]) => void }) {
   return (
     <article className="engagement-metric-card">
-      <span>{label}</span><strong>{value}<SvgIcon name="check-circle-green" size={20} /></strong>{note && <p>{note}</p>}
+      <span>{label}</span><strong><span>{value}</span><SvgIcon name="check-circle-green" size={20} /></strong>{note && <p>{note}</p>}
       <div className="chart-shell engagement-chart-shell">
         <div className="chart-y-labels">{yLabels.map((item) => <span key={item}>{item}</span>)}</div>
         <EditableLineChart data={data} max={max} color={color} fill editMode={editMode} onChange={onChange} />
@@ -499,7 +499,7 @@ function VideoAnalyticsPage({ video, imageSrc, graphData, analyticsTab, editMode
 
         <div ref={analyticsCarouselRef} className="analytics-carousel" aria-label="Analytics cards" onScroll={syncCarouselDot}>
           <article className="overview-chart-card">
-            <span>Views</span><strong>{video.views}<SvgIcon name="check-circle-green" size={20} /></strong><p>About the same as usual</p>
+            <span>Views</span><strong><span>{video.views}</span><SvgIcon name="check-circle-green" size={20} /></strong><p>About the same as usual</p>
             <div className="chart-shell views-chart-shell">
               <div className="chart-y-labels"><span>21</span><span>14</span><span>7</span><span>0</span></div>
               <EditableLineChart data={graphData.views} max={21} color="#00a9c7" fill editMode={editMode} onChange={(data) => onGraphChange("views", data)} />
@@ -535,7 +535,7 @@ function VideoAnalyticsPage({ video, imageSrc, graphData, analyticsTab, editMode
       </> : analyticsTab === "Reach" ? (
         <section className="reach-page-content">
           <article className="reach-card reach-views-card">
-            <span>Views</span><strong>4.8K<SvgIcon name="check-circle-green" size={21} /></strong><p>About the same as usual</p>
+            <span>Views</span><strong><span>4.8K</span><SvgIcon name="check-circle-green" size={21} /></strong><p>About the same as usual</p>
             <div className="chart-shell reach-chart-shell">
               <div className="chart-y-labels"><span>5.7K</span><span>3.8K</span><span>1.9K</span><span>0</span></div>
               <EditableLineChart data={graphData.reachViews || defaultVideoGraphs.reachViews} max={90} color="#6254db" fill editMode={editMode} onChange={(data) => onGraphChange("reachViews", data)} />
@@ -728,7 +728,8 @@ export default function Home() {
         } else {
           try {
             await getLicenseStatus(session.token);
-          } catch {
+          } catch (error) {
+            if (!canRefreshLicense(error)) throw error;
             await refreshLicense(session);
           }
         }
@@ -745,7 +746,9 @@ export default function Home() {
     };
 
     void validateLicense();
-    const intervalId = window.setInterval(() => void validateLicense(), LICENSE_RECHECK_MS);
+    const intervalId = window.setInterval(() => {
+      if (document.visibilityState === "visible") void validateLicense();
+    }, LICENSE_RECHECK_MS);
     window.addEventListener("focus", recheckWhenVisible);
     document.addEventListener("visibilitychange", recheckWhenVisible);
 
@@ -761,7 +764,9 @@ export default function Home() {
     const root = canvasRef.current?.querySelector(".page-content");
     if (!root) return [] as HTMLElement[];
     const selector = "h1,h2,h3,p,span,strong,b,small";
-    return Array.from(root.querySelectorAll<HTMLElement>(selector)).filter((element) => !element.querySelector(selector));
+    return Array.from(root.querySelectorAll<HTMLElement>(selector)).filter((element) =>
+      !element.querySelector(selector) && !element.matches("[data-no-edit]") && !element.closest("[data-no-edit='true']"),
+    );
   }
 
   useEffect(() => {
@@ -903,7 +908,7 @@ export default function Home() {
   return (
     <main className={`reference-canvas${editMode ? " text-edit-mode" : ""}`} ref={canvasRef}>
       <div className="screen-scroll">
-        {selectedVideoIndex === null && <TopHeader editMode={editMode} onToggleEdit={toggleTextEditing} />}
+        {selectedVideoIndex === null && <TopHeader avatarSrc={avatar.src} editMode={editMode} onToggleEdit={toggleTextEditing} />}
         <div className="page-content">
           {selectedVideoIndex !== null ? (
             videoAnalyticsOpen ? (

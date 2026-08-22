@@ -63,6 +63,10 @@ test("keeps privileged Supabase credentials out of browser code", async () => {
   assert.match(page, /activateLicense/);
   assert.match(page, /getLicenseStatus/);
   assert.match(page, /const LICENSE_RECHECK_MS = 30_000/);
-  assert.match(page, /setInterval\(\(\) => void validateLicense\(\), LICENSE_RECHECK_MS\)/);
+  assert.match(page, /document\.visibilityState === "visible"/);
+  assert.match(page, /canRefreshLicense\(error\)/);
   assert.match(page, /clearInterval\(intervalId\)/);
+  assert.match(page, /<TopHeader avatarSrc=\{avatar\.src\}/);
+  assert.match(page, /data-no-edit="true"/);
+  assert.match(page, /contentEditable=\{false\}/);
 });

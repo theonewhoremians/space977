@@ -449,8 +449,10 @@ button { font:inherit; color:inherit; }
 .header-actions button { position:absolute; top:15px; width:26px; height:31px; border:0; padding:0; background:transparent; display:grid; place-items:center; cursor:pointer; pointer-events:auto; }
 .header-actions button:first-child { left:267px; }
 .header-actions button:nth-child(2) { left:322px; width:25px; }
-.header-actions .header-avatar { left:372px; width:30px; }
-.header-avatar img { width:30px; height:30px; display:block; object-fit:contain; }
+.header-actions .header-avatar { left:372px; width:30px; border-radius:50%; overflow:hidden; }
+.header-avatar img { width:30px; height:30px; display:block; object-fit:cover; object-position:center; }
+.svg-icon,
+[data-no-edit="true"] { user-select:none; -webkit-user-select:none; -webkit-user-drag:none; }
 
 .channel-profile-accurate {
   height:106px;
