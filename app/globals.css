@@ -929,39 +929,11 @@ button { font:inherit; color:inherit; }
   white-space:nowrap;
 }
 .detail-performance-rows .performance-row svg { flex:0 0 auto; }
-.detail-analytics-card {
-  height:160px;
-  margin-top:17px;
-  padding:18px 17px 13px;
-  cursor:pointer;
-}
-.detail-analytics-card:focus-visible { outline:2px solid #f1f1f1; outline-offset:2px; }
-.detail-analytics-card h2,
 .detail-comments-card h2 {
   margin:0;
   font-size:20px;
   line-height:25px;
   font-weight:700;
-}
-.detail-analytics-card > p {
-  margin:5px 0 10px;
-  color:#aaa;
-  font-size:15px;
-  line-height:19px;
-}
-.detail-analytics-card > div {
-  height:35px;
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  font-size:16px;
-  line-height:20px;
-}
-.detail-analytics-card > div strong {
-  display:flex;
-  align-items:center;
-  gap:10px;
-  font-weight:400;
 }
 .detail-comments-card {
   min-height:222px;

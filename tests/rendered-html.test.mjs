@@ -86,6 +86,9 @@ test("keeps privileged Supabase credentials out of browser code", async () => {
   assert.match(page, /PerformanceRow label="Ranking by views" value=\{video\.ranking\} status="right"/);
   assert.match(page, /PerformanceRow label="Average percentage viewed" value=\{video\.average\} status="down"/);
   assert.match(page, /PerformanceRow label="Likes" value=\{video\.likes\} status="success"/);
+  assert.doesNotMatch(page, /detail-analytics-card/);
+  assert.doesNotMatch(page, /aria-label="Open video analytics"/);
+  assert.match(page, /const selector = "h1,h2,h3,p,span,strong,b,small"/);
   assert.match(page, /values\?\.length === elements\.length/);
   assert.match(page, /newly added sections cannot inherit labels/);
   assert.match(page, /checkInFlight = true;\s+try \{\s+const session = loadLicenseSession\(\)/);

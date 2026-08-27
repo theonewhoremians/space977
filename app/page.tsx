@@ -295,7 +295,7 @@ function DashboardPage({ avatarSrc, onAvatarChange, cardImages, onCardImageChang
   );
 }
 
-function VideoDetailPage({ video, imageSrc, editMode, onBack, onToggleEdit, onOpenAnalytics, onImageChange }: { video: PublishedVideo; imageSrc?: string; editMode: boolean; onBack: () => void; onToggleEdit: () => void; onOpenAnalytics: () => void; onImageChange: (file: File, preview: string) => void }) {
+function VideoDetailPage({ video, imageSrc, editMode, onBack, onToggleEdit, onImageChange }: { video: PublishedVideo; imageSrc?: string; editMode: boolean; onBack: () => void; onToggleEdit: () => void; onImageChange: (file: File, preview: string) => void }) {
   const imageInputRef = useRef<HTMLInputElement>(null);
 
   function handleImageUpload(event: ChangeEvent<HTMLInputElement>) {
@@ -345,13 +345,6 @@ function VideoDetailPage({ video, imageSrc, editMode, onBack, onToggleEdit, onOp
           <PerformanceRow label="Average percentage viewed" value={video.average} status="down" />
           <PerformanceRow label="Likes" value={video.likes} status="success" />
         </div>
-      </section>
-
-      <section className="detail-card detail-analytics-card" role="button" tabIndex={0} aria-label="Open video analytics" onClick={() => { if (!editMode) onOpenAnalytics(); }} onKeyDown={(event) => { if (!editMode && (event.key === "Enter" || event.key === " ")) onOpenAnalytics(); }}>
-        <h2>Analytics</h2>
-        <p>Since published</p>
-        <div><span>Views</span><strong><span>{video.views}</span><SvgIcon name="check-circle-green" size={21} /></strong></div>
-        <div><span>Watch time (hours)</span><strong><span>0.0</span><SvgIcon name="check-circle-green" size={21} /></strong></div>
       </section>
 
       <section className="detail-card detail-comments-card">
@@ -1021,7 +1014,7 @@ export default function Home() {
             videoAnalyticsOpen ? (
               <VideoAnalyticsPage video={publishedVideos[selectedVideoIndex]} imageSrc={cardImages[selectedVideoIndex]?.src} graphData={videoGraphs[selectedVideoIndex] || defaultVideoGraphs} analyticsTab={videoAnalyticsTab} editMode={editMode} onBack={closeVideoAnalytics} onToggleEdit={toggleTextEditing} onAnalyticsTabChange={setVideoAnalyticsTab} onGraphChange={(key, data) => updateGraph(selectedVideoIndex, key, data)} />
             ) : (
-              <VideoDetailPage video={publishedVideos[selectedVideoIndex]} imageSrc={cardImages[selectedVideoIndex]?.src} editMode={editMode} onBack={closeVideo} onToggleEdit={toggleTextEditing} onOpenAnalytics={openVideoAnalytics} onImageChange={(file, src) => updateCardImage(selectedVideoIndex, file, src)} />
+              <VideoDetailPage video={publishedVideos[selectedVideoIndex]} imageSrc={cardImages[selectedVideoIndex]?.src} editMode={editMode} onBack={closeVideo} onToggleEdit={toggleTextEditing} onImageChange={(file, src) => updateCardImage(selectedVideoIndex, file, src)} />
             )
           ) : activePage === "Dashboard" ? (
             <DashboardPage avatarSrc={avatar.src} onAvatarChange={(file, src) => setAvatar({ file, src })} cardImages={cardImages} onCardImageChange={updateCardImage} onOpenVideo={openVideo} />
