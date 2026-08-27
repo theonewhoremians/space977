@@ -878,9 +878,14 @@ export default function Home() {
     const frame = window.requestAnimationFrame(() => {
       const elements = editableElements();
       const values = savedText[editContextKey];
-      values?.forEach((value, index) => {
-        if (elements[index]) elements[index].innerHTML = value;
-      });
+      // Saved text is positional. Only restore it when the stored layout still
+      // matches the current page so newly added sections cannot inherit labels
+      // from an older layout.
+      if (values?.length === elements.length) {
+        values.forEach((value, index) => {
+          elements[index].innerHTML = value;
+        });
+      }
       elements.forEach((element) => {
         element.contentEditable = editMode ? "true" : "false";
         element.spellcheck = editMode;
