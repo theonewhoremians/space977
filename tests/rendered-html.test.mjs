@@ -68,6 +68,10 @@ test("keeps privileged Supabase credentials out of browser code", async () => {
   assert.match(page, /activateLicense/);
   assert.match(page, /getLicenseStatus/);
   assert.match(page, /const LICENSE_RECHECK_MS = 30_000/);
+  assert.match(page, /const PHONE_TOP_GAP_PX = 32/);
+  assert.match(page, /creator-studio-phone-top-gap-v1/);
+  assert.match(page, /aria-pressed=\{topGapEnabled\}/);
+  assert.match(page, /phone-top-gap/);
   assert.match(page, /checkInFlight = true;\s+try \{\s+const session = loadLicenseSession\(\)/);
   assert.match(page, /document\.visibilityState === "visible"/);
   assert.match(page, /canRefreshLicense\(error\)/);

@@ -7,6 +7,8 @@ import { activateLicense, canRefreshLicense, clearLicenseSession, getLicenseStat
 
 const iconPath = (name: string) => `/ui-icons/${name}.svg`;
 const textStorageKey = "creator-studio-saved-text-v3";
+const topGapStorageKey = "creator-studio-phone-top-gap-v1";
+const PHONE_TOP_GAP_PX = 32;
 
 function percentageValue(text: string | null | undefined) {
   const value = Number.parseFloat((text || "").replace(/[^0-9.-]/g, ""));
@@ -59,7 +61,7 @@ function SvgIcon({ name, size, className = "" }: { name: string; size: number; c
   return <img className={`svg-icon ${className}`} src={iconPath(name)} width={size} height={size} alt="" aria-hidden="true" contentEditable={false} draggable={false} data-no-edit="true" />;
 }
 
-function TopHeader({ avatarSrc, editMode, onToggleEdit }: { avatarSrc: string; editMode: boolean; onToggleEdit: () => void }) {
+function TopHeader({ avatarSrc, editMode, topGapEnabled, onToggleEdit, onToggleTopGap }: { avatarSrc: string; editMode: boolean; topGapEnabled: boolean; onToggleEdit: () => void; onToggleTopGap: () => void }) {
   const logoTapCountRef = useRef(0);
   const logoTapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -86,7 +88,7 @@ function TopHeader({ avatarSrc, editMode, onToggleEdit }: { avatarSrc: string; e
         <img src="/youtube-studio-logo-white.svg" alt="Studio" contentEditable={false} draggable={false} data-no-edit="true" />
       </button>
       <div className="header-actions">
-        <button aria-label="Create"><SvgIcon name="add-circle" size={25} /></button>
+        <button className={`safe-gap-toggle${topGapEnabled ? " active" : ""}`} type="button" aria-label={topGapEnabled ? "Remove phone top gap" : "Add phone top gap"} aria-pressed={topGapEnabled} title={topGapEnabled ? "Turn off phone top gap" : "Turn on phone top gap"} onClick={onToggleTopGap}><SvgIcon name="add-circle" size={25} /></button>
         <button aria-label="Notifications"><SvgIcon name="notification-bell" size={25} /></button>
         <button className="header-avatar" aria-label="Account"><img src={avatarSrc} alt="Channel profile" contentEditable={false} draggable={false} data-no-edit="true" /></button>
       </div>
@@ -697,6 +699,7 @@ export default function Home() {
   const [avatar, setAvatar] = useState<{ file: File | null; src: string }>({ file: null, src: "/top-icons/profile-emoji.svg" });
   const [cardImages, setCardImages] = useState<Array<{ file: File; src: string } | undefined>>([]);
   const [editMode, setEditMode] = useState(false);
+  const [topGapEnabled, setTopGapEnabled] = useState(false);
   const [savedText, setSavedText] = useState<Partial<Record<string, string[]>>>({});
   const [videoGraphs, setVideoGraphs] = useState<Record<number, VideoGraphData>>({});
   const canvasRef = useRef<HTMLElement>(null);
@@ -771,22 +774,35 @@ export default function Home() {
 
   useEffect(() => {
     const syncScale = () => {
-      const scale = Math.min(1, window.innerWidth / 436, window.innerHeight / 932);
+      const reservedTopSpace = topGapEnabled ? PHONE_TOP_GAP_PX : 0;
+      const scale = Math.min(1, window.innerWidth / 436, Math.max(0, window.innerHeight - reservedTopSpace) / 932);
       document.documentElement.style.setProperty("--app-scale", String(scale));
     };
     syncScale();
     window.addEventListener("resize", syncScale);
+    return () => window.removeEventListener("resize", syncScale);
+  }, [topGapEnabled]);
+
+  useEffect(() => {
     canvasRef.current?.querySelector<HTMLElement>(".screen-scroll")?.scrollTo({ top: 0 });
     try {
       const stored = window.localStorage.getItem(textStorageKey);
       if (stored) setSavedText(JSON.parse(stored));
       const storedGraphs = window.localStorage.getItem("creator-studio-video-graphs-v1");
       if (storedGraphs) setVideoGraphs(JSON.parse(storedGraphs));
+      setTopGapEnabled(window.localStorage.getItem(topGapStorageKey) === "true");
     } catch {
       // Keep editing available even when browser storage is disabled.
     }
-    return () => window.removeEventListener("resize", syncScale);
   }, []);
+
+  function toggleTopGap() {
+    setTopGapEnabled((current) => {
+      const next = !current;
+      try { window.localStorage.setItem(topGapStorageKey, String(next)); } catch { /* Keep the setting for this session. */ }
+      return next;
+    });
+  }
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -906,9 +922,9 @@ export default function Home() {
   }
 
   return (
-    <main className={`reference-canvas${editMode ? " text-edit-mode" : ""}`} ref={canvasRef}>
+    <main className={`reference-canvas${editMode ? " text-edit-mode" : ""}${topGapEnabled ? " phone-top-gap" : ""}`} ref={canvasRef}>
       <div className="screen-scroll">
-        {selectedVideoIndex === null && <TopHeader avatarSrc={avatar.src} editMode={editMode} onToggleEdit={toggleTextEditing} />}
+        {selectedVideoIndex === null && <TopHeader avatarSrc={avatar.src} editMode={editMode} topGapEnabled={topGapEnabled} onToggleEdit={toggleTextEditing} onToggleTopGap={toggleTopGap} />}
         <div className="page-content">
           {selectedVideoIndex !== null ? (
             videoAnalyticsOpen ? (
