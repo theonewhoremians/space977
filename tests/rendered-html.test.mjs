@@ -107,6 +107,6 @@ test("keeps privileged Supabase credentials out of browser code", async () => {
   assert.match(page, /<TopHeader avatarSrc=\{avatar\.src\}/);
   assert.match(page, /data-no-edit="true"/);
   assert.match(page, /contentEditable=\{false\}/);
-  assert.match(styles, /:root h1,\s*:root h2 \{ font-weight:910; \}/);
-  assert.match(styles, /:root h3 \{ font-weight:520; \}/);
+  assert.match(styles, /:root h1,\s*:root h2 \{ font-weight:980; \}/);
+  assert.match(styles, /:root h3 \{ font-weight:560; \}/);
 });

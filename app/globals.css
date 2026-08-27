@@ -1670,7 +1670,7 @@ button { font:inherit; color:inherit; }
   background:#932bc5;
 }
 
-/* Keep every semantic heading 30% bolder than its original weight. */
+/* Keep every semantic heading 40% bolder than its original weight. */
 :root h1,
-:root h2 { font-weight:910; }
-:root h3 { font-weight:520; }
+:root h2 { font-weight:980; }
+:root h3 { font-weight:560; }
