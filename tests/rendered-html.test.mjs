@@ -60,9 +60,15 @@ test("keeps privileged Supabase credentials out of browser code", async () => {
   assert.match(licenseClient, /refresh-license/);
   assert.match(licenseClient, /license-status/);
   assert.match(licenseClient, /youtube-insight-device-id-v1/);
+  assert.match(licenseClient, /const memoryStorage = new Map<string, string>\(\)/);
+  assert.match(licenseClient, /LICENSE_REQUEST_TIMEOUT_MS = 10_000/);
+  assert.match(licenseClient, /signal: controller\.signal/);
+  assert.match(licenseClient, /window\.localStorage\.removeItem\(key\)/);
+  assert.match(licenseClient, /A blocked storage API must never leave the access screen checking forever/);
   assert.match(page, /activateLicense/);
   assert.match(page, /getLicenseStatus/);
   assert.match(page, /const LICENSE_RECHECK_MS = 30_000/);
+  assert.match(page, /checkInFlight = true;\s+try \{\s+const session = loadLicenseSession\(\)/);
   assert.match(page, /document\.visibilityState === "visible"/);
   assert.match(page, /canRefreshLicense\(error\)/);
   assert.match(page, /clearInterval\(intervalId\)/);

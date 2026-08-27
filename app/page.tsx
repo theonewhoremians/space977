@@ -715,14 +715,14 @@ export default function Home() {
 
     const validateLicense = async () => {
       if (cancelled || checkInFlight) return;
-      const session = loadLicenseSession();
-      if (!session) {
-        lock();
-        return;
-      }
-
       checkInFlight = true;
       try {
+        const session = loadLicenseSession();
+        if (!session) {
+          lock();
+          return;
+        }
+
         if (new Date(session.expiresAt) <= new Date()) {
           await refreshLicense(session);
         } else {

@@ -14,6 +14,36 @@ export type LicenseSession = {
 
 const SESSION_KEY = "youtube-insight-license-session-v1";
 const DEVICE_KEY = "youtube-insight-device-id-v1";
+const LICENSE_REQUEST_TIMEOUT_MS = 10_000;
+const memoryStorage = new Map<string, string>();
+
+function readStorage(key: string) {
+  try {
+    const value = window.localStorage.getItem(key);
+    if (value !== null) memoryStorage.set(key, value);
+    return value ?? memoryStorage.get(key) ?? null;
+  } catch {
+    return memoryStorage.get(key) ?? null;
+  }
+}
+
+function writeStorage(key: string, value: string) {
+  memoryStorage.set(key, value);
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    // Embedded browsers can block persistent storage. Memory keeps this tab usable.
+  }
+}
+
+function removeStorage(key: string) {
+  memoryStorage.delete(key);
+  try {
+    window.localStorage.removeItem(key);
+  } catch {
+    // A blocked storage API must never leave the access screen checking forever.
+  }
+}
 
 export class LicenseRequestError extends Error {
   status: number | undefined;
@@ -31,11 +61,23 @@ export function canRefreshLicense(error: unknown) {
 
 async function call<T>(name: string, body?: unknown, method = "POST", token?: string): Promise<T> {
   if (!supabase) throw new Error("Youtube Insight access service is not configured.");
-  const { data, error } = await supabase.functions.invoke(name, {
-    method,
-    body,
-    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-  });
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), LICENSE_REQUEST_TIMEOUT_MS);
+  let data: unknown;
+  let error: Error | null;
+
+  try {
+    const result = await supabase.functions.invoke(name, {
+      method,
+      body,
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      signal: controller.signal,
+    });
+    data = result.data;
+    error = result.error;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
 
   if (error) {
     let message: string | undefined;
@@ -56,25 +98,25 @@ async function call<T>(name: string, body?: unknown, method = "POST", token?: st
 
 export function loadLicenseSession(): LicenseSession | null {
   try {
-    return JSON.parse(window.localStorage.getItem(SESSION_KEY) ?? "null") as LicenseSession | null;
+    return JSON.parse(readStorage(SESSION_KEY) ?? "null") as LicenseSession | null;
   } catch {
     return null;
   }
 }
 
 export function saveLicenseSession(session: LicenseSession) {
-  window.localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  writeStorage(SESSION_KEY, JSON.stringify(session));
 }
 
 export function clearLicenseSession() {
-  window.localStorage.removeItem(SESSION_KEY);
+  removeStorage(SESSION_KEY);
 }
 
 export function createDeviceId() {
-  const current = window.localStorage.getItem(DEVICE_KEY);
+  const current = readStorage(DEVICE_KEY);
   if (current) return current;
   const id = window.crypto.randomUUID();
-  window.localStorage.setItem(DEVICE_KEY, id);
+  writeStorage(DEVICE_KEY, id);
   return id;
 }
 
