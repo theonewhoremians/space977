@@ -889,7 +889,10 @@ button { font:inherit; color:inherit; }
   min-height:296px;
   margin-top:17px;
   padding:18px 17px 14px;
+  cursor:pointer;
 }
+.detail-performance-card:focus-visible { outline:2px solid #f1f1f1; outline-offset:2px; }
+.page-editing .detail-performance-card { cursor:text; }
 .detail-performance-card h2 {
   margin:0;
   color:#f1f1f1;

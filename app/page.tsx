@@ -295,7 +295,7 @@ function DashboardPage({ avatarSrc, onAvatarChange, cardImages, onCardImageChang
   );
 }
 
-function VideoDetailPage({ video, imageSrc, editMode, onBack, onToggleEdit, onImageChange }: { video: PublishedVideo; imageSrc?: string; editMode: boolean; onBack: () => void; onToggleEdit: () => void; onImageChange: (file: File, preview: string) => void }) {
+function VideoDetailPage({ video, imageSrc, editMode, onBack, onToggleEdit, onOpenAnalytics, onImageChange }: { video: PublishedVideo; imageSrc?: string; editMode: boolean; onBack: () => void; onToggleEdit: () => void; onOpenAnalytics: () => void; onImageChange: (file: File, preview: string) => void }) {
   const imageInputRef = useRef<HTMLInputElement>(null);
 
   function handleImageUpload(event: ChangeEvent<HTMLInputElement>) {
@@ -310,7 +310,7 @@ function VideoDetailPage({ video, imageSrc, editMode, onBack, onToggleEdit, onIm
   }
 
   return (
-    <section className="video-detail-page">
+    <section className={`video-detail-page${editMode ? " page-editing" : ""}`}>
       <header className="detail-toolbar">
         <button type="button" aria-label="Back to dashboard" onClick={onBack}><SvgIcon name="detail-back" size={30} /></button>
         <div>
@@ -336,7 +336,7 @@ function VideoDetailPage({ video, imageSrc, editMode, onBack, onToggleEdit, onIm
         <div className="detail-info-row"><span>Notices</span><strong><span>Other notices</span></strong></div>
       </section>
 
-      <section className="detail-card detail-performance-card">
+      <section className="detail-card detail-performance-card" role="button" tabIndex={editMode ? -1 : 0} aria-label="Open video performance analytics" onClick={() => { if (!editMode) onOpenAnalytics(); }} onKeyDown={(event) => { if (!editMode && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); onOpenAnalytics(); } }}>
         <h2>Video performance</h2>
         <p>{video.metadata}</p>
         <div className="detail-performance-rows">
@@ -1014,7 +1014,7 @@ export default function Home() {
             videoAnalyticsOpen ? (
               <VideoAnalyticsPage video={publishedVideos[selectedVideoIndex]} imageSrc={cardImages[selectedVideoIndex]?.src} graphData={videoGraphs[selectedVideoIndex] || defaultVideoGraphs} analyticsTab={videoAnalyticsTab} editMode={editMode} onBack={closeVideoAnalytics} onToggleEdit={toggleTextEditing} onAnalyticsTabChange={setVideoAnalyticsTab} onGraphChange={(key, data) => updateGraph(selectedVideoIndex, key, data)} />
             ) : (
-              <VideoDetailPage video={publishedVideos[selectedVideoIndex]} imageSrc={cardImages[selectedVideoIndex]?.src} editMode={editMode} onBack={closeVideo} onToggleEdit={toggleTextEditing} onImageChange={(file, src) => updateCardImage(selectedVideoIndex, file, src)} />
+              <VideoDetailPage video={publishedVideos[selectedVideoIndex]} imageSrc={cardImages[selectedVideoIndex]?.src} editMode={editMode} onBack={closeVideo} onToggleEdit={toggleTextEditing} onOpenAnalytics={openVideoAnalytics} onImageChange={(file, src) => updateCardImage(selectedVideoIndex, file, src)} />
             )
           ) : activePage === "Dashboard" ? (
             <DashboardPage avatarSrc={avatar.src} onAvatarChange={(file, src) => setAvatar({ file, src })} cardImages={cardImages} onCardImageChange={updateCardImage} onOpenVideo={openVideo} />
