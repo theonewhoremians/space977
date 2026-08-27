@@ -3,10 +3,11 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import { ChevronRight, ChevronUp } from "lucide-react";
-import { activateLicense, canRefreshLicense, clearLicenseSession, getLicenseStatus, loadLicenseSession, refreshLicense } from "../lib/license";
+import { activateLicense, canRefreshLicense, clearLicenseSession, getLicenseStatus, isDefinitiveLicenseFailure, licenseHasExpired, loadLicenseSession, refreshLicense } from "../lib/license";
 
 const iconPath = (name: string) => `/ui-icons/${name}.svg`;
 const textStorageKey = "creator-studio-saved-text-v3";
+const cardImageStorageKey = "creator-studio-card-images-v1";
 const topGapStorageKey = "creator-studio-phone-top-gap-v1";
 const PHONE_TOP_GAP_PX = 32;
 
@@ -134,7 +135,7 @@ function MetricCard({ label, value, status = "success" }: { label: string; value
 
 function EngagementStats({ views, likes, comments, expanded, onToggle }: { views: string; likes: string; comments: string; expanded: boolean; onToggle: () => void }) {
   return (
-    <div className="engagement-stats">
+    <div className="engagement-stats" role="button" tabIndex={0} aria-label={expanded ? "Collapse content details" : "Expand content details"} aria-expanded={expanded} onClick={onToggle} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onToggle(); } }}>
       <span><SvgIcon name="views-studio" size={22} /><span>{views}</span></span>
       <span><SvgIcon name="likes-studio" size={22} /><span>{likes}</span></span>
       <span><SvgIcon name="comments-studio" size={22} /><span>{comments}</span></span>
@@ -173,25 +174,39 @@ type PublishedVideo = {
 
 type VideoGraphData = {
   views: number[];
+  viewsShadow: number[];
   subscribers: number[];
+  subscribersShadow: number[];
   retention: number[];
   reachViews: number[];
+  reachViewsShadow: number[];
   engagedViews: number[];
+  engagedViewsShadow: number[];
   uniqueViewers: number[];
+  uniqueViewersShadow: number[];
   watchTime: number[];
+  watchTimeShadow: number[];
   averageDuration: number[];
+  averageDurationShadow: number[];
   engagementRetention: number[];
 };
 
 const defaultVideoGraphs: VideoGraphData = {
   views: [0, 2, 2, 5, 5, 7, 7, 8, 8, 11, 11, 13, 14, 15, 15, 18, 18],
+  viewsShadow: [4, 6, 7, 7, 8, 8, 9, 9, 9, 9, 9, 9, 18, 18, 18, 18, 18],
   subscribers: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  subscribersShadow: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
   retention: [138, 112, 106, 106, 106, 88, 81, 72, 72, 60, 53, 53, 44, 44, 44, 36, 36],
   reachViews: [0, 1, 1, 2, 2, 3, 4, 5, 6, 7, 9, 13, 22, 38, 61, 82],
+  reachViewsShadow: [36, 36, 37, 37, 38, 38, 39, 39, 39, 39, 40, 40, 40, 40, 40, 40],
   engagedViews: [0, 330, 332, 332, 332, 332, 332, 332, 332, 332, 332, 332],
+  engagedViewsShadow: [0, 300, 300, 300, 300, 300, 300, 300, 300, 300, 300, 300],
   uniqueViewers: [0, 300, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  uniqueViewersShadow: [0, 260, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80],
   watchTime: [0, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3],
+  watchTimeShadow: [0, 1.15, 1.15, 1.15, 1.15, 1.15, 1.15, 1.15, 1.15, 1.15, 1.15, 1.15],
   averageDuration: [0, 16, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  averageDurationShadow: [0, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10],
   engagementRetention: [112, 108, 106, 104, 84, 74, 64, 57, 43, 32, 28, 26, 23, 21, 18, 16, 14, 13, 12, 10, 8, 8],
 };
 
@@ -211,8 +226,8 @@ function PublishedContentCard({ video, initiallyExpanded = false, imageSrc, onIm
   }
 
   return (
-    <article className={`latest-card-accurate ${expanded ? "expanded" : "collapsed"}`} role="button" tabIndex={0} aria-label={`Open details for ${video.title}`} onClick={onOpen} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") onOpen(); }}>
-      <div className="latest-video-row">
+    <article className={`latest-card-accurate ${expanded ? "expanded" : "collapsed"}`}>
+      <div className="latest-video-row" role="button" tabIndex={0} aria-label={`Open details for ${video.title}`} onClick={onOpen} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") onOpen(); }}>
         <div className="thumbnail-uploader">
           <button className={`reference-thumb thumb-${video.thumb}${imageSrc ? " has-upload" : " has-reference"}`} type="button" aria-label={`Change thumbnail for ${video.title}`} onClick={(event) => { event.stopPropagation(); imageInputRef.current?.click(); }}>
             {imageSrc ? <img className="uploaded-thumbnail" src={imageSrc} alt="Video thumbnail" /> : <img className={`reference-sheet reference-sheet-${video.thumb}`} src="/pixel-reference.jpeg" alt="Video thumbnail" />}
@@ -268,7 +283,7 @@ function BottomNavigation({ active, onSelect }: { active: PageName; onSelect: (p
   return <nav className="bottom-navigation" aria-label="Studio navigation">{navItems.map(([icon, label]) => <BottomNavItem key={label} icon={icon} label={label} active={active === label} onSelect={() => onSelect(label)} />)}</nav>;
 }
 
-function DashboardPage({ avatarSrc, onAvatarChange, cardImages, onCardImageChange, onOpenVideo }: { avatarSrc: string; onAvatarChange: (file: File, preview: string) => void; cardImages: Array<{ file: File; src: string } | undefined>; onCardImageChange: (index: number, file: File, preview: string) => void; onOpenVideo: (index: number) => void }) {
+function DashboardPage({ avatarSrc, onAvatarChange, cardImages, onCardImageChange, onOpenVideo }: { avatarSrc: string; onAvatarChange: (file: File, preview: string) => void; cardImages: Array<{ file: File | null; src: string } | undefined>; onCardImageChange: (index: number, file: File, preview: string) => void; onOpenVideo: (index: number) => void }) {
   return (
     <>
       <ChannelProfile avatarSrc={avatarSrc} onAvatarChange={onAvatarChange} />
@@ -318,7 +333,18 @@ function VideoDetailPage({ video, imageSrc, editMode, onBack, onToggleEdit, onOp
 
       <section className="detail-card detail-info-card">
         <div className="detail-info-row"><span>Visibility</span><strong><SvgIcon name="detail-public" size={22} /><span>Public</span></strong></div>
-        <div className="detail-info-row"><span>Notices</span><strong><SvgIcon name="detail-info" size={22} /><span>Other notices</span></strong></div>
+        <div className="detail-info-row"><span>Notices</span><strong><span>Other notices</span></strong></div>
+      </section>
+
+      <section className="detail-card detail-performance-card">
+        <h2>Video performance</h2>
+        <p>{video.metadata}</p>
+        <div className="detail-performance-rows">
+          <PerformanceRow label="Ranking by views" value={video.ranking} status="right" />
+          <PerformanceRow label="Views" value={video.views} status="down" />
+          <PerformanceRow label="Average percentage viewed" value={video.average} status="down" />
+          <PerformanceRow label="Likes" value={video.likes} status="success" />
+        </div>
       </section>
 
       <section className="detail-card detail-analytics-card" role="button" tabIndex={0} aria-label="Open video analytics" onClick={() => { if (!editMode) onOpenAnalytics(); }} onKeyDown={(event) => { if (!editMode && (event.key === "Enter" || event.key === " ")) onOpenAnalytics(); }}>
@@ -336,26 +362,44 @@ function VideoDetailPage({ video, imageSrc, editMode, onBack, onToggleEdit, onOp
   );
 }
 
-function EditableLineChart({ data, max, color, editMode, fill = false, onChange }: { data: number[]; max: number; color: string; editMode: boolean; fill?: boolean; onChange: (next: number[]) => void }) {
+function EditableLineChart({ data, shadowData, max, color, editMode, fill = false, onChange, onShadowChange }: { data: number[]; shadowData?: number[]; max: number; color: string; editMode: boolean; fill?: boolean; onChange: (next: number[]) => void; onShadowChange?: (next: number[]) => void }) {
   const chartRef = useRef<SVGSVGElement>(null);
   const draggingRef = useRef(false);
+  const draggingSeriesRef = useRef<"line" | "shadow">("line");
   const width = 300;
   const height = 132;
-  const points = data.map((value, index) => `${(index / Math.max(1, data.length - 1)) * width},${height - (Math.min(max, Math.max(0, value)) / max) * height}`).join(" ");
+  const pointY = (value: number) => height - (Math.min(max, Math.max(0, value)) / max) * height;
+  const seriesPoints = (series: number[]) => series.map((value, index) => `${(index / Math.max(1, series.length - 1)) * width},${pointY(value)}`).join(" ");
+  const points = seriesPoints(data);
+  const editableShadow = fill ? (shadowData || data) : undefined;
+  const shadowPoints = editableShadow ? seriesPoints(editableShadow) : "";
 
   function reshapeChart(event: React.PointerEvent<SVGSVGElement>) {
     if (!editMode || !chartRef.current) return;
     const rect = chartRef.current.getBoundingClientRect();
     const x = Math.min(width, Math.max(0, ((event.clientX - rect.left) / rect.width) * width));
     const y = Math.min(height, Math.max(0, ((event.clientY - rect.top) / rect.height) * height));
-    const index = Math.round((x / width) * Math.max(1, data.length - 1));
-    const next = [...data];
+    const source = draggingSeriesRef.current === "shadow" && editableShadow && onShadowChange ? editableShadow : data;
+    const index = Math.round((x / width) * Math.max(1, source.length - 1));
+    const next = [...source];
     next[index] = Math.round((1 - y / height) * max);
-    onChange(next);
+    if (draggingSeriesRef.current === "shadow" && editableShadow && onShadowChange) onShadowChange(next);
+    else onChange(next);
   }
 
   function startReshaping(event: React.PointerEvent<SVGSVGElement>) {
     if (!editMode) return;
+    event.preventDefault();
+    if (chartRef.current && editableShadow && onShadowChange) {
+      const rect = chartRef.current.getBoundingClientRect();
+      const x = Math.min(width, Math.max(0, ((event.clientX - rect.left) / rect.width) * width));
+      const y = Math.min(height, Math.max(0, ((event.clientY - rect.top) / rect.height) * height));
+      const lineIndex = Math.round((x / width) * Math.max(1, data.length - 1));
+      const shadowIndex = Math.round((x / width) * Math.max(1, editableShadow.length - 1));
+      draggingSeriesRef.current = Math.abs(y - pointY(editableShadow[shadowIndex])) < Math.abs(y - pointY(data[lineIndex])) ? "shadow" : "line";
+    } else {
+      draggingSeriesRef.current = "line";
+    }
     draggingRef.current = true;
     event.currentTarget.setPointerCapture(event.pointerId);
     reshapeChart(event);
@@ -371,24 +415,28 @@ function EditableLineChart({ data, max, color, editMode, fill = false, onChange 
   }
 
   return (
-    <svg ref={chartRef} className={`editable-line-chart${editMode ? " chart-editing" : ""}`} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" onPointerDown={startReshaping} onPointerMove={continueReshaping} onPointerUp={stopReshaping} onPointerCancel={stopReshaping} aria-label={editMode ? "Editable graph. Drag the circular points to reshape it." : "Analytics graph"}>
+    <svg ref={chartRef} className={`editable-line-chart${editMode ? " chart-editing" : ""}`} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" onPointerDown={startReshaping} onPointerMove={continueReshaping} onPointerUp={stopReshaping} onPointerCancel={stopReshaping} aria-label={editMode ? "Editable graph. Drag colored points for the line and gray points for the shadow." : "Analytics graph"}>
       {[0, 44, 88, 132].map((y) => <line key={y} x1="0" y1={y} x2={width} y2={y} stroke="#555" strokeWidth="1" />)}
-      {fill && <polygon points={`0,${height} ${points} ${width},${height}`} fill="rgba(120,120,120,.42)" />}
+      {fill && <polygon points={`0,${height} ${shadowPoints} ${width},${height}`} fill="rgba(120,120,120,.42)" />}
+      {fill && <polyline points={shadowPoints} fill="none" stroke="rgba(180,180,180,.7)" strokeWidth="1.5" strokeLinejoin="round" />}
       <polyline points={points} fill="none" stroke={color} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
+      {editMode && editableShadow && onShadowChange && editableShadow.map((value, index) => (
+        <circle className="shadow-graph-point" key={`shadow-${index}`} cx={(index / Math.max(1, editableShadow.length - 1)) * width} cy={pointY(value)} r="5.5" fill="#777" stroke="#f1f1f1" strokeWidth="1.5" />
+      ))}
       {editMode && data.map((value, index) => (
-        <circle key={index} cx={(index / Math.max(1, data.length - 1)) * width} cy={height - (Math.min(max, Math.max(0, value)) / max) * height} r="5.5" fill={color} stroke="#f1f1f1" strokeWidth="1.5" />
+        <circle className="line-graph-point" key={index} cx={(index / Math.max(1, data.length - 1)) * width} cy={pointY(value)} r="5.5" fill={color} stroke="#f1f1f1" strokeWidth="1.5" />
       ))}
     </svg>
   );
 }
 
-function EngagementMetricCard({ label, value, note, yLabels, xStart, xEnd, data, max, color = "#eb3b98", editMode, onChange }: { label: string; value: string; note?: string; yLabels: string[]; xStart: string; xEnd: string; data: number[]; max: number; color?: string; editMode: boolean; onChange: (data: number[]) => void }) {
+function EngagementMetricCard({ label, value, note, yLabels, xStart, xEnd, data, shadowData, max, color = "#eb3b98", editMode, onChange, onShadowChange }: { label: string; value: string; note?: string; yLabels: string[]; xStart: string; xEnd: string; data: number[]; shadowData: number[]; max: number; color?: string; editMode: boolean; onChange: (data: number[]) => void; onShadowChange: (data: number[]) => void }) {
   return (
     <article className="engagement-metric-card">
       <span>{label}</span><strong><span>{value}</span><SvgIcon name="check-circle-green" size={20} /></strong>{note && <p>{note}</p>}
       <div className="chart-shell engagement-chart-shell">
         <div className="chart-y-labels">{yLabels.map((item) => <span key={item}>{item}</span>)}</div>
-        <EditableLineChart data={data} max={max} color={color} fill editMode={editMode} onChange={onChange} />
+        <EditableLineChart data={data} shadowData={shadowData} max={max} color={color} fill editMode={editMode} onChange={onChange} onShadowChange={onShadowChange} />
         <div className="chart-x-labels"><span>{xStart}</span><span>{xEnd}</span></div>
       </div>
     </article>
@@ -504,7 +552,7 @@ function VideoAnalyticsPage({ video, imageSrc, graphData, analyticsTab, editMode
             <span>Views</span><strong><span>{video.views}</span><SvgIcon name="check-circle-green" size={20} /></strong><p>About the same as usual</p>
             <div className="chart-shell views-chart-shell">
               <div className="chart-y-labels"><span>21</span><span>14</span><span>7</span><span>0</span></div>
-              <EditableLineChart data={graphData.views} max={21} color="#00a9c7" fill editMode={editMode} onChange={(data) => onGraphChange("views", data)} />
+              <EditableLineChart data={graphData.views} shadowData={graphData.viewsShadow || defaultVideoGraphs.viewsShadow} max={21} color="#00a9c7" fill editMode={editMode} onChange={(data) => onGraphChange("views", data)} onShadowChange={(data) => onGraphChange("viewsShadow", data)} />
               <div className="chart-x-labels"><span>0</span><span>907 days</span></div>
             </div>
           </article>
@@ -540,7 +588,7 @@ function VideoAnalyticsPage({ video, imageSrc, graphData, analyticsTab, editMode
             <span>Views</span><strong><span>4.8K</span><SvgIcon name="check-circle-green" size={21} /></strong><p>About the same as usual</p>
             <div className="chart-shell reach-chart-shell">
               <div className="chart-y-labels"><span>5.7K</span><span>3.8K</span><span>1.9K</span><span>0</span></div>
-              <EditableLineChart data={graphData.reachViews || defaultVideoGraphs.reachViews} max={90} color="#6254db" fill editMode={editMode} onChange={(data) => onGraphChange("reachViews", data)} />
+              <EditableLineChart data={graphData.reachViews || defaultVideoGraphs.reachViews} shadowData={graphData.reachViewsShadow || defaultVideoGraphs.reachViewsShadow} max={90} color="#6254db" fill editMode={editMode} onChange={(data) => onGraphChange("reachViews", data)} onShadowChange={(data) => onGraphChange("reachViewsShadow", data)} />
               <div className="chart-x-labels"><span>0</span><span>634 days</span></div>
             </div>
           </article>
@@ -573,10 +621,10 @@ function VideoAnalyticsPage({ video, imageSrc, graphData, analyticsTab, editMode
       ) : analyticsTab === "Engagement" ? (
         <section className="engagement-page-content">
           <div ref={engagementCarouselRef} className="engagement-carousel" aria-label="Engagement metric graphs" onScroll={syncEngagementDot}>
-            <EngagementMetricCard label="Engaged views" value="332" yLabels={["360", "240", "120", "0"]} xStart="0" xEnd="142 days" data={graphData.engagedViews || defaultVideoGraphs.engagedViews} max={360} editMode={editMode} onChange={(data) => onGraphChange("engagedViews", data)} />
-            <EngagementMetricCard label="Unique viewers" value="306" yLabels={["300", "200", "100", "0"]} xStart="Apr 1" xEnd="Aug 22" data={graphData.uniqueViewers || defaultVideoGraphs.uniqueViewers} max={300} editMode={editMode} onChange={(data) => onGraphChange("uniqueViewers", data)} />
-            <EngagementMetricCard label="Watch time (hours)" value="1.3" note="About the same as usual" yLabels={["2.0", "1.3", "0.6", "0.0"]} xStart="0" xEnd="142 days" data={graphData.watchTime || defaultVideoGraphs.watchTime} max={2} editMode={editMode} onChange={(data) => onGraphChange("watchTime", data)} />
-            <EngagementMetricCard label="Average view duration" value="0:11" note="About the same as usual" yLabels={["0:24", "0:16", "0:08", "0:00"]} xStart="0" xEnd="142 days" data={graphData.averageDuration || defaultVideoGraphs.averageDuration} max={24} editMode={editMode} onChange={(data) => onGraphChange("averageDuration", data)} />
+            <EngagementMetricCard label="Engaged views" value="332" yLabels={["360", "240", "120", "0"]} xStart="0" xEnd="142 days" data={graphData.engagedViews || defaultVideoGraphs.engagedViews} shadowData={graphData.engagedViewsShadow || defaultVideoGraphs.engagedViewsShadow} max={360} editMode={editMode} onChange={(data) => onGraphChange("engagedViews", data)} onShadowChange={(data) => onGraphChange("engagedViewsShadow", data)} />
+            <EngagementMetricCard label="Unique viewers" value="306" yLabels={["300", "200", "100", "0"]} xStart="Apr 1" xEnd="Aug 22" data={graphData.uniqueViewers || defaultVideoGraphs.uniqueViewers} shadowData={graphData.uniqueViewersShadow || defaultVideoGraphs.uniqueViewersShadow} max={300} editMode={editMode} onChange={(data) => onGraphChange("uniqueViewers", data)} onShadowChange={(data) => onGraphChange("uniqueViewersShadow", data)} />
+            <EngagementMetricCard label="Watch time (hours)" value="1.3" note="About the same as usual" yLabels={["2.0", "1.3", "0.6", "0.0"]} xStart="0" xEnd="142 days" data={graphData.watchTime || defaultVideoGraphs.watchTime} shadowData={graphData.watchTimeShadow || defaultVideoGraphs.watchTimeShadow} max={2} editMode={editMode} onChange={(data) => onGraphChange("watchTime", data)} onShadowChange={(data) => onGraphChange("watchTimeShadow", data)} />
+            <EngagementMetricCard label="Average view duration" value="0:11" note="About the same as usual" yLabels={["0:24", "0:16", "0:08", "0:00"]} xStart="0" xEnd="142 days" data={graphData.averageDuration || defaultVideoGraphs.averageDuration} shadowData={graphData.averageDurationShadow || defaultVideoGraphs.averageDurationShadow} max={24} editMode={editMode} onChange={(data) => onGraphChange("averageDuration", data)} onShadowChange={(data) => onGraphChange("averageDurationShadow", data)} />
           </div>
           <div className="engagement-dots" aria-label="Choose engagement graph">{[0, 1, 2, 3].map((index) => <button key={index} className={activeEngagementCard === index ? "active" : ""} type="button" aria-label={`Show engagement graph ${index + 1}`} aria-current={activeEngagementCard === index ? "true" : undefined} onClick={() => selectEngagementCard(index)} />)}</div>
 
@@ -601,8 +649,8 @@ function VideoAnalyticsPage({ video, imageSrc, graphData, analyticsTab, editMode
       ) : analyticsTab === "Audience" ? (
         <section className="audience-page-content">
           <div ref={audienceCarouselRef} className="engagement-carousel" aria-label="Audience metric graphs" onScroll={syncAudienceDot}>
-            <EngagementMetricCard label="Unique viewers" value="306" yLabels={["300", "200", "100", "0"]} xStart="Apr 1" xEnd="Aug 22" data={graphData.uniqueViewers || defaultVideoGraphs.uniqueViewers} max={300} color="#932bc5" editMode={editMode} onChange={(data) => onGraphChange("uniqueViewers", data)} />
-            <EngagementMetricCard label="Subscribers" value="0" yLabels={["3", "2", "1", "0"]} xStart="0" xEnd="142 days" data={graphData.subscribers || defaultVideoGraphs.subscribers} max={3} color="#932bc5" editMode={editMode} onChange={(data) => onGraphChange("subscribers", data)} />
+            <EngagementMetricCard label="Unique viewers" value="306" yLabels={["300", "200", "100", "0"]} xStart="Apr 1" xEnd="Aug 22" data={graphData.uniqueViewers || defaultVideoGraphs.uniqueViewers} shadowData={graphData.uniqueViewersShadow || defaultVideoGraphs.uniqueViewersShadow} max={300} color="#932bc5" editMode={editMode} onChange={(data) => onGraphChange("uniqueViewers", data)} onShadowChange={(data) => onGraphChange("uniqueViewersShadow", data)} />
+            <EngagementMetricCard label="Subscribers" value="0" yLabels={["3", "2", "1", "0"]} xStart="0" xEnd="142 days" data={graphData.subscribers || defaultVideoGraphs.subscribers} shadowData={graphData.subscribersShadow || defaultVideoGraphs.subscribersShadow} max={3} color="#932bc5" editMode={editMode} onChange={(data) => onGraphChange("subscribers", data)} onShadowChange={(data) => onGraphChange("subscribersShadow", data)} />
           </div>
           <div className="engagement-dots" aria-label="Choose audience graph">{[0, 1].map((index) => <button key={index} className={activeAudienceCard === index ? "active" : ""} type="button" aria-label={`Show audience graph ${index + 1}`} aria-current={activeAudienceCard === index ? "true" : undefined} onClick={() => selectAudienceCard(index)} />)}</div>
 
@@ -697,7 +745,7 @@ export default function Home() {
   const [videoAnalyticsOpen, setVideoAnalyticsOpen] = useState(false);
   const [videoAnalyticsTab, setVideoAnalyticsTab] = useState<VideoAnalyticsTab>("Overview");
   const [avatar, setAvatar] = useState<{ file: File | null; src: string }>({ file: null, src: "/top-icons/profile-emoji.svg" });
-  const [cardImages, setCardImages] = useState<Array<{ file: File; src: string } | undefined>>([]);
+  const [cardImages, setCardImages] = useState<Array<{ file: File | null; src: string } | undefined>>([]);
   const [editMode, setEditMode] = useState(false);
   const [topGapEnabled, setTopGapEnabled] = useState(false);
   const [savedText, setSavedText] = useState<Partial<Record<string, string[]>>>({});
@@ -726,17 +774,34 @@ export default function Home() {
           return;
         }
 
-        if (new Date(session.expiresAt) <= new Date()) {
-          await refreshLicense(session);
-        } else {
-          try {
-            await getLicenseStatus(session.token);
-          } catch (error) {
-            if (!canRefreshLicense(error)) throw error;
+        if (licenseHasExpired(session)) {
+          lock();
+          return;
+        }
+
+        try {
+          if (new Date(session.expiresAt) <= new Date()) {
             await refreshLicense(session);
+          } else {
+            await getLicenseStatus(session.token);
+          }
+          unlock();
+        } catch (error) {
+          if (canRefreshLicense(error)) {
+            try {
+              await refreshLicense(session);
+              unlock();
+            } catch (refreshError) {
+              if (isDefinitiveLicenseFailure(refreshError)) lock();
+              else unlock();
+            }
+          } else if (isDefinitiveLicenseFailure(error)) {
+            lock();
+          } else {
+            // Keep a locally valid activation during temporary network or relay failures.
+            unlock();
           }
         }
-        unlock();
       } catch {
         lock();
       } finally {
@@ -790,6 +855,11 @@ export default function Home() {
       if (stored) setSavedText(JSON.parse(stored));
       const storedGraphs = window.localStorage.getItem("creator-studio-video-graphs-v1");
       if (storedGraphs) setVideoGraphs(JSON.parse(storedGraphs));
+      const storedCardImages = window.localStorage.getItem(cardImageStorageKey);
+      if (storedCardImages) {
+        const sources = JSON.parse(storedCardImages) as Array<string | null>;
+        setCardImages(sources.map((src) => src ? { file: null, src } : undefined));
+      }
       setTopGapEnabled(window.localStorage.getItem(topGapStorageKey) === "true");
     } catch {
       // Keep editing available even when browser storage is disabled.
@@ -820,6 +890,14 @@ export default function Home() {
     });
     return () => window.cancelAnimationFrame(frame);
   }, [editContextKey, editMode, savedText]);
+
+  useEffect(() => {
+    if (Object.keys(videoGraphs).length === 0) return;
+    const saveTimer = window.setTimeout(() => {
+      try { window.localStorage.setItem("creator-studio-video-graphs-v1", JSON.stringify(videoGraphs)); } catch { /* Keep graph changes for this session. */ }
+    }, 160);
+    return () => window.clearTimeout(saveTimer);
+  }, [videoGraphs]);
 
   function toggleTextEditing() {
     if (!editMode) {
@@ -876,7 +954,15 @@ export default function Home() {
   function updateGraph(videoIndex: number, key: keyof VideoGraphData, data: number[]) {
     setVideoGraphs((current) => {
       const next = { ...current, [videoIndex]: { ...(current[videoIndex] || defaultVideoGraphs), [key]: data } };
-      try { window.localStorage.setItem("creator-studio-video-graphs-v1", JSON.stringify(next)); } catch { /* Keep graph changes for this session. */ }
+      return next;
+    });
+  }
+
+  function updateCardImage(videoIndex: number, file: File, src: string) {
+    setCardImages((current) => {
+      const next = [...current];
+      next[videoIndex] = { file, src };
+      try { window.localStorage.setItem(cardImageStorageKey, JSON.stringify(next.map((image) => image?.src ?? null))); } catch { /* Keep uploaded images synced for this session. */ }
       return next;
     });
   }
@@ -930,10 +1016,10 @@ export default function Home() {
             videoAnalyticsOpen ? (
               <VideoAnalyticsPage video={publishedVideos[selectedVideoIndex]} imageSrc={cardImages[selectedVideoIndex]?.src} graphData={videoGraphs[selectedVideoIndex] || defaultVideoGraphs} analyticsTab={videoAnalyticsTab} editMode={editMode} onBack={closeVideoAnalytics} onToggleEdit={toggleTextEditing} onAnalyticsTabChange={setVideoAnalyticsTab} onGraphChange={(key, data) => updateGraph(selectedVideoIndex, key, data)} />
             ) : (
-              <VideoDetailPage video={publishedVideos[selectedVideoIndex]} imageSrc={cardImages[selectedVideoIndex]?.src} editMode={editMode} onBack={closeVideo} onToggleEdit={toggleTextEditing} onOpenAnalytics={openVideoAnalytics} onImageChange={(file, src) => setCardImages((current) => { const next = [...current]; next[selectedVideoIndex] = { file, src }; return next; })} />
+              <VideoDetailPage video={publishedVideos[selectedVideoIndex]} imageSrc={cardImages[selectedVideoIndex]?.src} editMode={editMode} onBack={closeVideo} onToggleEdit={toggleTextEditing} onOpenAnalytics={openVideoAnalytics} onImageChange={(file, src) => updateCardImage(selectedVideoIndex, file, src)} />
             )
           ) : activePage === "Dashboard" ? (
-            <DashboardPage avatarSrc={avatar.src} onAvatarChange={(file, src) => setAvatar({ file, src })} cardImages={cardImages} onCardImageChange={(index, file, src) => setCardImages((current) => { const next = [...current]; next[index] = { file, src }; return next; })} onOpenVideo={openVideo} />
+            <DashboardPage avatarSrc={avatar.src} onAvatarChange={(file, src) => setAvatar({ file, src })} cardImages={cardImages} onCardImageChange={updateCardImage} onOpenVideo={openVideo} />
           ) : <StudioSectionPage page={activePage} />}
         </div>
       </div>

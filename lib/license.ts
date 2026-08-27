@@ -15,25 +15,57 @@ export type LicenseSession = {
 const SESSION_KEY = "youtube-insight-license-session-v1";
 const DEVICE_KEY = "youtube-insight-device-id-v1";
 const LICENSE_REQUEST_TIMEOUT_MS = 10_000;
+const MAX_COOKIE_AGE_SECONDS = 60 * 60 * 24 * 400;
 const memoryStorage = new Map<string, string>();
+
+function readCookie(key: string) {
+  try {
+    const encodedKey = `${encodeURIComponent(key)}=`;
+    const entry = document.cookie.split("; ").find((item) => item.startsWith(encodedKey));
+    return entry ? decodeURIComponent(entry.slice(encodedKey.length)) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeCookie(key: string, value: string, maxAgeSeconds = MAX_COOKIE_AGE_SECONDS) {
+  try {
+    const embeddedAttributes = window.location.protocol === "https:"
+      ? "; SameSite=None; Secure; Partitioned"
+      : "; SameSite=Lax";
+    document.cookie = `${encodeURIComponent(key)}=${encodeURIComponent(value)}; Path=/; Max-Age=${Math.max(0, Math.floor(maxAgeSeconds))}${embeddedAttributes}`;
+  } catch {
+    // Cookies are a persistence fallback and may be disabled by the host browser.
+  }
+}
+
+function sessionCookieAge(session: LicenseSession) {
+  if (!session.license.expiresAt) return MAX_COOKIE_AGE_SECONDS;
+  return Math.min(MAX_COOKIE_AGE_SECONDS, Math.max(0, (new Date(session.license.expiresAt).getTime() - Date.now()) / 1000));
+}
 
 function readStorage(key: string) {
   try {
     const value = window.localStorage.getItem(key);
     if (value !== null) memoryStorage.set(key, value);
-    return value ?? memoryStorage.get(key) ?? null;
+    const persisted = value ?? readCookie(key);
+    if (persisted !== null) memoryStorage.set(key, persisted);
+    return persisted ?? memoryStorage.get(key) ?? null;
   } catch {
-    return memoryStorage.get(key) ?? null;
+    const persisted = readCookie(key);
+    if (persisted !== null) memoryStorage.set(key, persisted);
+    return persisted ?? memoryStorage.get(key) ?? null;
   }
 }
 
-function writeStorage(key: string, value: string) {
+function writeStorage(key: string, value: string, cookieAgeSeconds = MAX_COOKIE_AGE_SECONDS) {
   memoryStorage.set(key, value);
   try {
     window.localStorage.setItem(key, value);
   } catch {
     // Embedded browsers can block persistent storage. Memory keeps this tab usable.
   }
+  writeCookie(key, value, cookieAgeSeconds);
 }
 
 function removeStorage(key: string) {
@@ -43,6 +75,7 @@ function removeStorage(key: string) {
   } catch {
     // A blocked storage API must never leave the access screen checking forever.
   }
+  writeCookie(key, "", 0);
 }
 
 export class LicenseRequestError extends Error {
@@ -57,6 +90,14 @@ export class LicenseRequestError extends Error {
 
 export function canRefreshLicense(error: unknown) {
   return error instanceof LicenseRequestError && error.status === 401;
+}
+
+export function isDefinitiveLicenseFailure(error: unknown) {
+  return error instanceof LicenseRequestError && [403, 404, 409].includes(error.status ?? 0);
+}
+
+export function licenseHasExpired(session: LicenseSession) {
+  return Boolean(session.license.expiresAt && new Date(session.license.expiresAt).getTime() <= Date.now());
 }
 
 async function call<T>(name: string, body?: unknown, method = "POST", token?: string): Promise<T> {
@@ -105,7 +146,7 @@ export function loadLicenseSession(): LicenseSession | null {
 }
 
 export function saveLicenseSession(session: LicenseSession) {
-  writeStorage(SESSION_KEY, JSON.stringify(session));
+  writeStorage(SESSION_KEY, JSON.stringify(session), sessionCookieAge(session));
 }
 
 export function clearLicenseSession() {
@@ -114,7 +155,10 @@ export function clearLicenseSession() {
 
 export function createDeviceId() {
   const current = readStorage(DEVICE_KEY);
-  if (current) return current;
+  if (current) {
+    writeStorage(DEVICE_KEY, current);
+    return current;
+  }
   const id = window.crypto.randomUUID();
   writeStorage(DEVICE_KEY, id);
   return id;

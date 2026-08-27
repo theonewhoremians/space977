@@ -540,9 +540,12 @@ button { font:inherit; color:inherit; }
   border-radius:14px;
   background:var(--card);
   padding:0 18px;
-  cursor:pointer;
+  cursor:default;
 }
-.latest-card-accurate:focus-visible { outline:2px solid #f1f1f1; outline-offset:2px; }
+.latest-video-row,
+.engagement-stats { cursor:pointer; }
+.latest-video-row:focus-visible,
+.engagement-stats:focus-visible { outline:2px solid #f1f1f1; outline-offset:-2px; }
 .latest-card-accurate.expanded { height:423px; }
 .latest-card-accurate.collapsed { height:132px; }
 .latest-card-accurate.collapsed .performance-list,
@@ -882,6 +885,50 @@ button { font:inherit; color:inherit; }
   color:#f1f1f1;
   font-weight:400;
 }
+.detail-performance-card {
+  min-height:296px;
+  margin-top:17px;
+  padding:18px 17px 14px;
+}
+.detail-performance-card h2 {
+  margin:0;
+  color:#f1f1f1;
+  font-size:20px;
+  line-height:25px;
+  font-weight:700;
+}
+.detail-performance-card > p {
+  margin:5px 0 10px;
+  color:#aaa;
+  font-size:16px;
+  line-height:21px;
+}
+.detail-performance-rows .performance-row {
+  min-height:52px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:14px;
+  color:#f1f1f1;
+  font-size:16px;
+  line-height:21px;
+}
+.detail-performance-rows .performance-row > span {
+  min-width:0;
+  flex:1;
+}
+.detail-performance-rows .performance-row > div {
+  min-width:92px;
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:11px;
+}
+.detail-performance-rows .performance-row b {
+  font-weight:400;
+  white-space:nowrap;
+}
+.detail-performance-rows .performance-row svg { flex:0 0 auto; }
 .detail-analytics-card {
   height:160px;
   margin-top:17px;
@@ -1104,6 +1151,8 @@ button { font:inherit; color:inherit; }
   outline:1px dashed rgba(255,255,255,.42);
   cursor:crosshair;
 }
+.editable-line-chart .shadow-graph-point { filter:drop-shadow(0 0 2px #000); }
+.editable-line-chart .line-graph-point { filter:drop-shadow(0 0 2px #000); }
 .chart-y-labels {
   position:absolute;
   top:-7px;
