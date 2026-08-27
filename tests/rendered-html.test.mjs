@@ -81,6 +81,7 @@ test("keeps privileged Supabase credentials out of browser code", async () => {
   assert.match(page, /viewsShadow/);
   assert.match(page, /onShadowChange/);
   assert.match(page, /gray points for the shadow/);
+  assert.doesNotMatch(page, /stroke="rgba\(180,180,180,\.7\)"/);
   assert.match(page, /className="engagement-stats" role="button"/);
   assert.match(page, /\/ui-icons\/likes-studio-provided\.png/);
   assert.match(page, /className="provided-like-icon"/);
@@ -106,6 +107,6 @@ test("keeps privileged Supabase credentials out of browser code", async () => {
   assert.match(page, /<TopHeader avatarSrc=\{avatar\.src\}/);
   assert.match(page, /data-no-edit="true"/);
   assert.match(page, /contentEditable=\{false\}/);
-  assert.match(styles, /:root h1,\s*:root h2 \{ font-weight:770; \}/);
-  assert.match(styles, /:root h3 \{ font-weight:440; \}/);
+  assert.match(styles, /:root h1,\s*:root h2 \{ font-weight:847; \}/);
+  assert.match(styles, /:root h3 \{ font-weight:484; \}/);
 });

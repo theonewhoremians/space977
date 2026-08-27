@@ -619,8 +619,8 @@ button { font:inherit; color:inherit; }
   position:absolute;
   left:50%;
   top:50%;
-  width:76px;
-  height:49px;
+  width:68px;
+  height:44px;
   max-width:none;
   transform:translate(-50%,-50%);
   pointer-events:none;
@@ -1670,7 +1670,7 @@ button { font:inherit; color:inherit; }
   background:#932bc5;
 }
 
-/* Increase every semantic heading level by 10% without changing its size. */
+/* A second 10% weight increase, without changing text size or spacing. */
 :root h1,
-:root h2 { font-weight:770; }
-:root h3 { font-weight:440; }
+:root h2 { font-weight:847; }
+:root h3 { font-weight:484; }

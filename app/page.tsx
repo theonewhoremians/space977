@@ -411,7 +411,6 @@ function EditableLineChart({ data, shadowData, max, color, editMode, fill = fals
     <svg ref={chartRef} className={`editable-line-chart${editMode ? " chart-editing" : ""}`} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" onPointerDown={startReshaping} onPointerMove={continueReshaping} onPointerUp={stopReshaping} onPointerCancel={stopReshaping} aria-label={editMode ? "Editable graph. Drag colored points for the line and gray points for the shadow." : "Analytics graph"}>
       {[0, 44, 88, 132].map((y) => <line key={y} x1="0" y1={y} x2={width} y2={y} stroke="#555" strokeWidth="1" />)}
       {fill && <polygon points={`0,${height} ${shadowPoints} ${width},${height}`} fill="rgba(120,120,120,.42)" />}
-      {fill && <polyline points={shadowPoints} fill="none" stroke="rgba(180,180,180,.7)" strokeWidth="1.5" strokeLinejoin="round" />}
       <polyline points={points} fill="none" stroke={color} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
       {editMode && editableShadow && onShadowChange && editableShadow.map((value, index) => (
         <circle className="shadow-graph-point" key={`shadow-${index}`} cx={(index / Math.max(1, editableShadow.length - 1)) * width} cy={pointY(value)} r="5.5" fill="#777" stroke="#f1f1f1" strokeWidth="1.5" />
