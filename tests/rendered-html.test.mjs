@@ -48,10 +48,11 @@ test("server-renders the protected license admin route", async () => {
 });
 
 test("keeps privileged Supabase credentials out of browser code", async () => {
-  const [supabaseClient, licenseClient, page] = await Promise.all([
+  const [supabaseClient, licenseClient, page, styles] = await Promise.all([
     readFile(new URL("../lib/supabase.ts", import.meta.url), "utf8"),
     readFile(new URL("../lib/license.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
   ]);
 
   assert.match(supabaseClient, /VITE_SUPABASE_PUBLISHABLE_KEY/);
@@ -81,6 +82,8 @@ test("keeps privileged Supabase credentials out of browser code", async () => {
   assert.match(page, /onShadowChange/);
   assert.match(page, /gray points for the shadow/);
   assert.match(page, /className="engagement-stats" role="button"/);
+  assert.match(page, /\/ui-icons\/likes-studio-provided\.png/);
+  assert.match(page, /className="provided-like-icon"/);
   assert.doesNotMatch(page, /<span>Notices<\/span><strong><SvgIcon name="detail-info"/);
   assert.match(page, /<h2>Video performance<\/h2>/);
   assert.match(page, /PerformanceRow label="Ranking by views" value=\{video\.ranking\} status="right"/);
@@ -103,4 +106,6 @@ test("keeps privileged Supabase credentials out of browser code", async () => {
   assert.match(page, /<TopHeader avatarSrc=\{avatar\.src\}/);
   assert.match(page, /data-no-edit="true"/);
   assert.match(page, /contentEditable=\{false\}/);
+  assert.match(styles, /:root h1,\s*:root h2 \{ font-weight:770; \}/);
+  assert.match(styles, /:root h3 \{ font-weight:440; \}/);
 });

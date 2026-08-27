@@ -606,6 +606,26 @@ button { font:inherit; color:inherit; }
   gap:28px;
 }
 .engagement-stats span { display:flex; align-items:center; gap:7px; font-size:16px; line-height:20px; }
+.provided-like-icon {
+  position:relative;
+  width:22px;
+  height:22px;
+  flex:0 0 22px;
+  overflow:hidden;
+  display:block;
+  border-radius:2px;
+}
+.provided-like-icon img {
+  position:absolute;
+  left:50%;
+  top:50%;
+  width:76px;
+  height:49px;
+  max-width:none;
+  transform:translate(-50%,-50%);
+  pointer-events:none;
+  user-select:none;
+}
 .content-toggle {
   width:30px;
   height:36px;
@@ -1649,3 +1669,8 @@ button { font:inherit; color:inherit; }
   border-radius:4px;
   background:#932bc5;
 }
+
+/* Increase every semantic heading level by 10% without changing its size. */
+:root h1,
+:root h2 { font-weight:770; }
+:root h3 { font-weight:440; }

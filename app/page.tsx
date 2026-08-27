@@ -137,7 +137,7 @@ function EngagementStats({ views, likes, comments, expanded, onToggle }: { views
   return (
     <div className="engagement-stats" role="button" tabIndex={0} aria-label={expanded ? "Collapse content details" : "Expand content details"} aria-expanded={expanded} onClick={onToggle} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onToggle(); } }}>
       <span><SvgIcon name="views-studio" size={22} /><span>{views}</span></span>
-      <span><SvgIcon name="likes-studio" size={22} /><span>{likes}</span></span>
+      <span><i className="provided-like-icon" aria-hidden="true" contentEditable={false} data-no-edit="true"><img src="/ui-icons/likes-studio-provided.png" alt="" draggable={false} /></i><span>{likes}</span></span>
       <span><SvgIcon name="comments-studio" size={22} /><span>{comments}</span></span>
       <button className="content-toggle" type="button" aria-label={expanded ? "Collapse content details" : "Expand content details"} aria-expanded={expanded} onClick={(event) => { event.stopPropagation(); onToggle(); }}>
         <ChevronUp className={expanded ? "" : "collapsed-chevron"} size={22} strokeWidth={2.2} />
