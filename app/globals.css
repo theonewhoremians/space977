@@ -1670,7 +1670,7 @@ button { font:inherit; color:inherit; }
   background:#932bc5;
 }
 
-/* A second 10% weight increase, without changing text size or spacing. */
+/* Keep every semantic heading 30% bolder than its original weight. */
 :root h1,
-:root h2 { font-weight:847; }
-:root h3 { font-weight:484; }
+:root h2 { font-weight:910; }
+:root h3 { font-weight:520; }
