@@ -24,15 +24,15 @@ async function render(pathname = "/", init = {}) {
   );
 }
 
-test("keeps the YouTube importer server-side", async () => {
+test("validates the public YouTube importer without an API key", async () => {
   const response = await render("/api/youtube-import", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ channel: "@example" }),
+    body: JSON.stringify({ channel: "" }),
   });
-  assert.equal(response.status, 503);
+  assert.equal(response.status, 400);
   const payload = await response.json();
-  assert.match(payload.error, /YOUTUBE_API_KEY/);
+  assert.match(payload.error, /channel URL, @handle, or channel ID/);
 });
 
 test("server-renders the access-code gate", async () => {
@@ -124,9 +124,10 @@ test("keeps privileged Supabase credentials out of browser code", async () => {
   assert.match(page, /fetch\("\/api\/youtube-import"/);
   assert.match(page, /payload\.videos\.slice\(0, 3\)/);
   assert.match(page, /youtubeImportStorageKey/);
-  assert.match(youtubeRoute, /process\.env\.YOUTUBE_API_KEY/);
-  assert.match(youtubeRoute, /order: "date", maxResults: "3"/);
-  assert.match(youtubeRoute, /part: "snippet,statistics"/);
+  assert.doesNotMatch(youtubeRoute, /YOUTUBE_API_KEY|googleapis\.com\/youtube\/v3/);
+  assert.match(youtubeRoute, /feeds\/videos\.xml\?channel_id=/);
+  assert.match(youtubeRoute, /slice\(0, 3\)/);
+  assert.match(youtubeRoute, /comments: "—"/);
   assert.match(styles, /:root h1,\s*:root h2 \{ font-weight:980; \}/);
   assert.match(styles, /:root h3 \{ font-weight:560; \}/);
 });

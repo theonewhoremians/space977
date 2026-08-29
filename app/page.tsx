@@ -1015,7 +1015,7 @@ export default function Home() {
       const nextImages = thumbnails.map((src) => ({ file: null, src }));
       setChannelName(payload.channel.title);
       setSubscriberCount(payload.channel.subscriberCount);
-      setAvatar({ file: null, src: payload.channel.avatarUrl });
+      if (payload.channel.avatarUrl) setAvatar({ file: null, src: payload.channel.avatarUrl });
       setPublishedVideos(videos);
       setCardImages(nextImages);
       try {
@@ -1076,7 +1076,7 @@ export default function Home() {
         <div className="youtube-import-backdrop">
           <form className="youtube-import-dialog" aria-label="Import YouTube channel" onSubmit={importYouTubeChannel}>
             <h2>Import YouTube channel</h2>
-            <p>Enter a channel URL, @handle, channel ID, or channel name.</p>
+            <p>Enter a public channel URL, @handle, or channel ID. No API key is required.</p>
             <input value={importQuery} onChange={(event) => setImportQuery(event.target.value)} placeholder="@channel or YouTube URL" autoCapitalize="none" autoCorrect="off" spellCheck={false} />
             {importError && <p className="youtube-import-error" role="alert">{importError}</p>}
             <div><button type="button" disabled={importingChannel} onClick={() => setImportDialogOpen(false)}>Cancel</button><button type="submit" disabled={importingChannel || !importQuery.trim()}>{importingChannel ? "Importing…" : "Import latest 3"}</button></div>
