@@ -9,6 +9,7 @@ const iconPath = (name: string) => `/ui-icons/${name}.svg`;
 const textStorageKey = "creator-studio-saved-text-v3";
 const cardImageStorageKey = "creator-studio-card-images-v1";
 const topGapStorageKey = "creator-studio-phone-top-gap-v1";
+const youtubeImportStorageKey = "creator-studio-youtube-import-v1";
 const PHONE_TOP_GAP_PX = 32;
 
 function percentageValue(text: string | null | undefined) {
@@ -62,7 +63,7 @@ function SvgIcon({ name, size, className = "" }: { name: string; size: number; c
   return <img className={`svg-icon ${className}`} src={iconPath(name)} width={size} height={size} alt="" aria-hidden="true" contentEditable={false} draggable={false} data-no-edit="true" />;
 }
 
-function TopHeader({ avatarSrc, editMode, topGapEnabled, onToggleEdit, onToggleTopGap }: { avatarSrc: string; editMode: boolean; topGapEnabled: boolean; onToggleEdit: () => void; onToggleTopGap: () => void }) {
+function TopHeader({ avatarSrc, editMode, topGapEnabled, importing, onToggleEdit, onToggleTopGap, onImportChannel }: { avatarSrc: string; editMode: boolean; topGapEnabled: boolean; importing: boolean; onToggleEdit: () => void; onToggleTopGap: () => void; onImportChannel: () => void }) {
   const logoTapCountRef = useRef(0);
   const logoTapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -90,14 +91,14 @@ function TopHeader({ avatarSrc, editMode, topGapEnabled, onToggleEdit, onToggleT
       </button>
       <div className="header-actions">
         <button className={`safe-gap-toggle${topGapEnabled ? " active" : ""}`} type="button" aria-label={topGapEnabled ? "Remove phone top gap" : "Add phone top gap"} aria-pressed={topGapEnabled} title={topGapEnabled ? "Turn off phone top gap" : "Turn on phone top gap"} onClick={onToggleTopGap}><SvgIcon name="add-circle" size={25} /></button>
-        <button aria-label="Notifications"><SvgIcon name="notification-bell" size={25} /></button>
+        <button className={importing ? "channel-importing" : ""} type="button" aria-label={importing ? "Importing YouTube channel" : "Import YouTube channel"} aria-busy={importing} disabled={importing} onClick={onImportChannel}><SvgIcon name="notification-bell" size={25} /></button>
         <button className="header-avatar" aria-label="Account"><img src={avatarSrc} alt="Channel profile" contentEditable={false} draggable={false} data-no-edit="true" /></button>
       </div>
     </header>
   );
 }
 
-function ChannelProfile({ avatarSrc, onAvatarChange }: { avatarSrc: string; onAvatarChange: (file: File, preview: string) => void }) {
+function ChannelProfile({ avatarSrc, channelName, subscriberCount, onAvatarChange }: { avatarSrc: string; channelName: string; subscriberCount: string; onAvatarChange: (file: File, preview: string) => void }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   function handleAvatarUpload(event: ChangeEvent<HTMLInputElement>) {
@@ -120,7 +121,7 @@ function ChannelProfile({ avatarSrc, onAvatarChange }: { avatarSrc: string; onAv
         </button>
         <input ref={fileInputRef} type="file" accept="image/png,image/jpeg,image/webp" onChange={handleAvatarUpload} hidden />
       </div>
-      <div className="channel-copy"><h1>Smili Gamer</h1><strong>2,328</strong><p>Total subscribers</p></div>
+      <div className="channel-copy"><h1>{channelName}</h1><strong>{subscriberCount}</strong><p>Total subscribers</p></div>
     </section>
   );
 }
@@ -170,6 +171,11 @@ type PublishedVideo = {
   ranking: string;
   average: string;
   thumb: number;
+};
+
+type YouTubeImportPayload = {
+  channel: { title: string; avatarUrl: string; subscriberCount: string };
+  videos: Array<{ title: string; publishedAt: string; thumbnailUrl: string; views: string; likes: string; comments: string }>;
 };
 
 type VideoGraphData = {
@@ -248,7 +254,7 @@ function PublishedContentCard({ video, initiallyExpanded = false, imageSrc, onIm
   );
 }
 
-const publishedVideos: PublishedVideo[] = [
+const defaultPublishedVideos: PublishedVideo[] = [
   { title: "Earn Dollars through Whop 🤑🤑 (ver...", metadata: "First 21 days 23 hours", views: "11", likes: "1", comments: "1", ranking: "8 of 10", average: "19.8%", thumb: 1 },
   { title: "Funding Pips @fundingpipscom #sh...", metadata: "First 70 days 18 hours", views: "53", likes: "1", comments: "0", ranking: "6 of 10", average: "31.2%", thumb: 2 },
   { title: "One injury changed everything #shor...", metadata: "First 71 days 4 hours", views: "6", likes: "0", comments: "0", ranking: "9 of 10", average: "14.6%", thumb: 3 },
@@ -283,14 +289,14 @@ function BottomNavigation({ active, onSelect }: { active: PageName; onSelect: (p
   return <nav className="bottom-navigation" aria-label="Studio navigation">{navItems.map(([icon, label]) => <BottomNavItem key={label} icon={icon} label={label} active={active === label} onSelect={() => onSelect(label)} />)}</nav>;
 }
 
-function DashboardPage({ avatarSrc, onAvatarChange, cardImages, onCardImageChange, onOpenVideo }: { avatarSrc: string; onAvatarChange: (file: File, preview: string) => void; cardImages: Array<{ file: File | null; src: string } | undefined>; onCardImageChange: (index: number, file: File, preview: string) => void; onOpenVideo: (index: number) => void }) {
+function DashboardPage({ avatarSrc, channelName, subscriberCount, videos, onAvatarChange, cardImages, onCardImageChange, onOpenVideo }: { avatarSrc: string; channelName: string; subscriberCount: string; videos: PublishedVideo[]; onAvatarChange: (file: File, preview: string) => void; cardImages: Array<{ file: File | null; src: string } | undefined>; onCardImageChange: (index: number, file: File, preview: string) => void; onOpenVideo: (index: number) => void }) {
   return (
     <>
-      <ChannelProfile avatarSrc={avatarSrc} onAvatarChange={onAvatarChange} />
+      <ChannelProfile avatarSrc={avatarSrc} channelName={channelName} subscriberCount={subscriberCount} onAvatarChange={onAvatarChange} />
       <AnalyticsHeader />
       <section className="metrics-grid"><MetricCard label="Views" value="2.5K" status="down" /><MetricCard label="Watch time (hours)" value="9.2" /></section>
       <h2 className="latest-title">Latest published content</h2>
-      <section className="published-content-list">{publishedVideos.map((video, index) => <PublishedContentCard key={index} video={video} imageSrc={cardImages[index]?.src} onImageChange={(file, preview) => onCardImageChange(index, file, preview)} onOpen={() => onOpenVideo(index)} />)}</section>
+      <section className="published-content-list">{videos.map((video, index) => <PublishedContentCard key={`${video.title}-${index}`} video={video} imageSrc={cardImages[index]?.src} onImageChange={(file, preview) => onCardImageChange(index, file, preview)} onOpen={() => onOpenVideo(index)} />)}</section>
     </>
   );
 }
@@ -738,6 +744,13 @@ export default function Home() {
   const [videoAnalyticsTab, setVideoAnalyticsTab] = useState<VideoAnalyticsTab>("Overview");
   const [avatar, setAvatar] = useState<{ file: File | null; src: string }>({ file: null, src: "/top-icons/profile-emoji.svg" });
   const [cardImages, setCardImages] = useState<Array<{ file: File | null; src: string } | undefined>>([]);
+  const [channelName, setChannelName] = useState("Smili Gamer");
+  const [subscriberCount, setSubscriberCount] = useState("2,328");
+  const [publishedVideos, setPublishedVideos] = useState<PublishedVideo[]>(defaultPublishedVideos);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [importQuery, setImportQuery] = useState("");
+  const [importingChannel, setImportingChannel] = useState(false);
+  const [importError, setImportError] = useState("");
   const [editMode, setEditMode] = useState(false);
   const [topGapEnabled, setTopGapEnabled] = useState(false);
   const [savedText, setSavedText] = useState<Partial<Record<string, string[]>>>({});
@@ -852,6 +865,15 @@ export default function Home() {
         const sources = JSON.parse(storedCardImages) as Array<string | null>;
         setCardImages(sources.map((src) => src ? { file: null, src } : undefined));
       }
+      const storedImport = window.localStorage.getItem(youtubeImportStorageKey);
+      if (storedImport) {
+        const imported = JSON.parse(storedImport) as { channelName: string; subscriberCount: string; avatarSrc: string; videos: PublishedVideo[]; thumbnails: string[] };
+        setChannelName(imported.channelName);
+        setSubscriberCount(imported.subscriberCount);
+        setAvatar({ file: null, src: imported.avatarSrc });
+        setPublishedVideos(imported.videos);
+        setCardImages(imported.thumbnails.map((src) => ({ file: null, src })));
+      }
       setTopGapEnabled(window.localStorage.getItem(topGapStorageKey) === "true");
     } catch {
       // Keep editing available even when browser storage is disabled.
@@ -964,6 +986,50 @@ export default function Home() {
     });
   }
 
+  async function importYouTubeChannel(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (importingChannel || !importQuery.trim()) return;
+    setImportingChannel(true);
+    setImportError("");
+    try {
+      const response = await fetch("/api/youtube-import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ channel: importQuery.trim() }),
+      });
+      const payload = await response.json() as YouTubeImportPayload & { error?: string };
+      if (!response.ok) throw new Error(payload.error || "Could not import this YouTube channel.");
+      if (!payload.videos?.length) throw new Error("This channel has no public uploads to import.");
+
+      const videos = payload.videos.slice(0, 3).map((video, index): PublishedVideo => ({
+        title: video.title,
+        metadata: `Published ${new Intl.RelativeTimeFormat("en", { numeric: "auto" }).format(-Math.max(0, Math.floor((Date.now() - new Date(video.publishedAt).getTime()) / 86_400_000)), "day")}`,
+        views: video.views,
+        likes: video.likes,
+        comments: video.comments,
+        ranking: "—",
+        average: "—",
+        thumb: index + 1,
+      }));
+      const thumbnails = payload.videos.slice(0, 3).map((video) => video.thumbnailUrl);
+      const nextImages = thumbnails.map((src) => ({ file: null, src }));
+      setChannelName(payload.channel.title);
+      setSubscriberCount(payload.channel.subscriberCount);
+      setAvatar({ file: null, src: payload.channel.avatarUrl });
+      setPublishedVideos(videos);
+      setCardImages(nextImages);
+      try {
+        window.localStorage.setItem(cardImageStorageKey, JSON.stringify(thumbnails));
+        window.localStorage.setItem(youtubeImportStorageKey, JSON.stringify({ channelName: payload.channel.title, subscriberCount: payload.channel.subscriberCount, avatarSrc: payload.channel.avatarUrl, videos, thumbnails }));
+      } catch { /* Keep the imported channel for this session. */ }
+      setImportDialogOpen(false);
+    } catch (error) {
+      setImportError(error instanceof Error ? error.message : "Could not import this YouTube channel.");
+    } finally {
+      setImportingChannel(false);
+    }
+  }
+
   function updateAccessCode(value: string) {
     const raw = value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12);
     setAccessCode(raw.match(/.{1,4}/g)?.join("-") ?? raw);
@@ -1006,8 +1072,19 @@ export default function Home() {
 
   return (
     <main className={`reference-canvas${editMode ? " text-edit-mode" : ""}${topGapEnabled ? " phone-top-gap" : ""}`} ref={canvasRef}>
+      {importDialogOpen && (
+        <div className="youtube-import-backdrop">
+          <form className="youtube-import-dialog" aria-label="Import YouTube channel" onSubmit={importYouTubeChannel}>
+            <h2>Import YouTube channel</h2>
+            <p>Enter a channel URL, @handle, channel ID, or channel name.</p>
+            <input value={importQuery} onChange={(event) => setImportQuery(event.target.value)} placeholder="@channel or YouTube URL" autoCapitalize="none" autoCorrect="off" spellCheck={false} />
+            {importError && <p className="youtube-import-error" role="alert">{importError}</p>}
+            <div><button type="button" disabled={importingChannel} onClick={() => setImportDialogOpen(false)}>Cancel</button><button type="submit" disabled={importingChannel || !importQuery.trim()}>{importingChannel ? "Importing…" : "Import latest 3"}</button></div>
+          </form>
+        </div>
+      )}
       <div className="screen-scroll">
-        {selectedVideoIndex === null && <TopHeader avatarSrc={avatar.src} editMode={editMode} topGapEnabled={topGapEnabled} onToggleEdit={toggleTextEditing} onToggleTopGap={toggleTopGap} />}
+        {selectedVideoIndex === null && <TopHeader avatarSrc={avatar.src} editMode={editMode} topGapEnabled={topGapEnabled} importing={importingChannel} onToggleEdit={toggleTextEditing} onToggleTopGap={toggleTopGap} onImportChannel={() => { setImportError(""); setImportDialogOpen(true); }} />}
         <div className="page-content">
           {selectedVideoIndex !== null ? (
             videoAnalyticsOpen ? (
@@ -1016,7 +1093,7 @@ export default function Home() {
               <VideoDetailPage video={publishedVideos[selectedVideoIndex]} imageSrc={cardImages[selectedVideoIndex]?.src} editMode={editMode} onBack={closeVideo} onToggleEdit={toggleTextEditing} onOpenAnalytics={openVideoAnalytics} onImageChange={(file, src) => updateCardImage(selectedVideoIndex, file, src)} />
             )
           ) : activePage === "Dashboard" ? (
-            <DashboardPage avatarSrc={avatar.src} onAvatarChange={(file, src) => setAvatar({ file, src })} cardImages={cardImages} onCardImageChange={updateCardImage} onOpenVideo={openVideo} />
+            <DashboardPage avatarSrc={avatar.src} channelName={channelName} subscriberCount={subscriberCount} videos={publishedVideos} onAvatarChange={(file, src) => setAvatar({ file, src })} cardImages={cardImages} onCardImageChange={updateCardImage} onOpenVideo={openVideo} />
           ) : <StudioSectionPage page={activePage} />}
         </div>
       </div>

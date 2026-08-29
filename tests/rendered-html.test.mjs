@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-async function render(pathname = "/") {
+async function render(pathname = "/", init = {}) {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
   workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}`);
   const { default: worker } = await import(workerUrl.href);
@@ -10,6 +10,7 @@ async function render(pathname = "/") {
   return worker.fetch(
     new Request(`http://localhost${pathname}`, {
       headers: { accept: "text/html" },
+      ...init,
     }),
     {
       ASSETS: {
@@ -22,6 +23,17 @@ async function render(pathname = "/") {
     },
   );
 }
+
+test("keeps the YouTube importer server-side", async () => {
+  const response = await render("/api/youtube-import", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ channel: "@example" }),
+  });
+  assert.equal(response.status, 503);
+  const payload = await response.json();
+  assert.match(payload.error, /YOUTUBE_API_KEY/);
+});
 
 test("server-renders the access-code gate", async () => {
   const response = await render();
@@ -48,11 +60,12 @@ test("server-renders the protected license admin route", async () => {
 });
 
 test("keeps privileged Supabase credentials out of browser code", async () => {
-  const [supabaseClient, licenseClient, page, styles] = await Promise.all([
+  const [supabaseClient, licenseClient, page, styles, youtubeRoute] = await Promise.all([
     readFile(new URL("../lib/supabase.ts", import.meta.url), "utf8"),
     readFile(new URL("../lib/license.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/youtube-import/route.ts", import.meta.url), "utf8"),
   ]);
 
   assert.match(supabaseClient, /VITE_SUPABASE_PUBLISHABLE_KEY/);
@@ -107,6 +120,13 @@ test("keeps privileged Supabase credentials out of browser code", async () => {
   assert.match(page, /<TopHeader avatarSrc=\{avatar\.src\}/);
   assert.match(page, /data-no-edit="true"/);
   assert.match(page, /contentEditable=\{false\}/);
+  assert.match(page, /aria-label=\{importing \? "Importing YouTube channel" : "Import YouTube channel"\}/);
+  assert.match(page, /fetch\("\/api\/youtube-import"/);
+  assert.match(page, /payload\.videos\.slice\(0, 3\)/);
+  assert.match(page, /youtubeImportStorageKey/);
+  assert.match(youtubeRoute, /process\.env\.YOUTUBE_API_KEY/);
+  assert.match(youtubeRoute, /order: "date", maxResults: "3"/);
+  assert.match(youtubeRoute, /part: "snippet,statistics"/);
   assert.match(styles, /:root h1,\s*:root h2 \{ font-weight:980; \}/);
   assert.match(styles, /:root h3 \{ font-weight:560; \}/);
 });
